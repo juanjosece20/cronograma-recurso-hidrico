@@ -113,6 +113,9 @@ td.tm div{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;o
 td.o{min-width:110px}
 td.o span{display:inline-block;background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:2px 8px;font-size:13px}
 tr.empty td{color:var(--muted);font-style:italic;padding:7px 12px;font-size:13.5px}
+tr.act.hoy td{background:#FFF8D6!important}
+tr.act.hoy td:first-child{box-shadow:inset 5px 0 0 var(--amarillo)}
+tr.act.hoy:hover td{background:#FFF1B3!important}
 tr.today td.dd::after{content:"hoy";margin-left:6px;background:var(--amarillo);color:#1F2A1C;border-radius:5px;padding:1px 6px;font-size:11.5px}
 .weeknav{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
 .weeknav h2{margin:0 auto 0 4px;font-size:18px}
@@ -200,7 +203,15 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
   td.p:not(:empty)::before{content:"Participantes:";display:block;color:var(--muted);font-weight:500;margin-top:4px}
   td.o:empty,td.tm:empty,td.h:empty,td.lg:empty,td.p:empty{display:none}
   tr.act:hover td{background:transparent}
+  tr.act.hoy{background:#FFF8D6!important;box-shadow:inset 5px 0 0 var(--amarillo)}
+  tr.act.hoy td:first-child{box-shadow:none}
 }
+.pie{margin-top:22px;padding-top:14px;border-top:2px solid var(--lima);display:flex;justify-content:space-between;gap:8px 20px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+.pie b{color:var(--verde);font-weight:500}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--verde);color:#fff;padding:12px 20px;border-radius:12px;font-weight:500;font-size:15px;box-shadow:0 8px 24px rgba(20,40,15,.3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;max-width:90vw}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:#C20E1A}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
 </style>
 </head>
 <body>
@@ -236,7 +247,12 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
 
   <div class="strip" id="strip"></div>
   <main id="main"><div class="loading">Cargando actividades…</div></main>
+  <footer class="pie">
+    <span><b>Secretaría de Salud y Ambiente</b> · Alcaldía de Bucaramanga</span>
+    <span id="upd">Conectando…</span>
+  </footer>
 </div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <dialog id="dlg">
   <form id="form" novalidate>
@@ -332,7 +348,7 @@ function rowsFor(list,w,i){
   if(!list.length) return `<tr class="empty"><td colspan="8">Sin actividades esta semana.</td></tr>`;
   list.forEach(it=>{
     const d=parse(it.fecha),first=it.fecha!==prev;if(first)alt=!alt;prev=it.fecha;
-    html+=`<tr class="act ${first?'first':'cont'}${alt?' alt':''}${it.fecha===iso(today)&&first?' today':''}" data-id="${esc(it.id)}" tabindex="0">
+    html+=`<tr class="act ${first?'first':'cont'}${alt?' alt':''}${it.fecha===iso(today)?' hoy':''}${it.fecha===iso(today)&&first?' today':''}" data-id="${esc(it.id)}" tabindex="0">
       <td class="d"><b>${pad(d.getDate())}</b><small>${MES[d.getMonth()].slice(0,3)}</small></td>
       <td class="dd">${DOW[(d.getDay()+6)%7]}</td>
       <td class="h">${it.hora?fmtHora(it.hora):''}</td>
@@ -445,7 +461,7 @@ function fillPersona(){
 }
 document.getElementById('delBtn').addEventListener('click',async e=>{
   if(!delArmed){delArmed=true;e.target.textContent='Confirmar eliminación';return}
-  try{await enviar('eliminar',{id:editing.id});dlg.close()}catch(ex){document.getElementById('ferr').textContent='No se pudo eliminar. Revisa la conexión e intenta de nuevo.'}
+  try{await enviar('eliminar',{id:editing.id});dlg.close();toast('✓ Actividad eliminada')}catch(ex){document.getElementById('ferr').textContent='No se pudo eliminar. Revisa la conexión e intenta de nuevo.'}
 });
 form.addEventListener('submit',async e=>{
   e.preventDefault();const f=form.elements,err=document.getElementById('ferr');
@@ -459,8 +475,8 @@ form.addEventListener('submit',async e=>{
   try{
     if(editing){data.id=editing.id;await enviar('editar',data)}else await enviar('agregar',data);
     dlg.close();const mi=MONTHS.findIndex(x=>x.m===d.getMonth());if(mi>=0)state.month=mi;state.week=monday(d);
-    render();
-  }catch(ex){err.textContent='No se pudo guardar. Revisa la conexión e intenta de nuevo.'}
+    render();toast(editing?'✓ Cambios guardados':'✓ Actividad guardada');
+  }catch(ex){toast('No se pudo guardar',true);err.textContent='No se pudo guardar. Revisa la conexión e intenta de nuevo.'}
   finally{b.disabled=false;b.textContent='Guardar'}
 });
 
@@ -502,12 +518,15 @@ document.getElementById('shotDl').addEventListener('click',async e=>{
 });
 
 // data
+let tt;function toast(t,bad){const el=document.getElementById('toast');el.textContent=t;el.classList.toggle('err',!!bad);el.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('on'),3000)}
 function notice(t){const n=document.getElementById('notice');n.textContent=t;n.hidden=!t}
 function aplicar(d){
   if(!d||!Array.isArray(d.actividades))throw new Error('respuesta');
   items=d.actividades.filter(x=>x.id&&/^\d{4}-\d{2}-\d{2}$/.test(x.fecha));
   if(Array.isArray(d.equipo)&&d.equipo.length){const ch=team.join('|')!==d.equipo.join('|');team=d.equipo;if(ch||!pSel.options.length||pSel.options.length===1)fillPersona()}
   loaded=true;notice('');render();
+  const n=new Date();let h=n.getHours();const ap=h<12?'a. m.':'p. m.';h=h%12||12;
+  document.getElementById('upd').textContent=`Actualizado ${h}:${pad(n.getMinutes())} ${ap}`;
 }
 async function cargar(){
   try{const r=await fetch(API);aplicar(await r.json())}
