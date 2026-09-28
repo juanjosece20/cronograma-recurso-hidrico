@@ -323,10 +323,16 @@ const fmtHora=h=>{if(!h)return'';const[H,M]=h.split(':').map(Number);return((H%1
 const isInc=it=>!it.actividad||!it.hora||!it.tema;
 const nowIdx=MONTHS.findIndex(x=>x.m===today.getMonth()&&today.getFullYear()===YEAR);
 let state={month:nowIdx>=0?nowIdx:0,view:'mes',week:null,q:'',persona:''};
+if(matchMedia('(max-width:760px)').matches){
+  const dw=today.getDay(),w=monday(dw===0||dw===6?addDays(today,7):today);
+  const mi=MONTHS.findIndex(x=>x.m===addDays(w,3).getMonth()&&addDays(w,3).getFullYear()===YEAR);
+  if(mi>=0){state.month=mi;state.week=w;state.view='semana'}
+}
 
 function defaultWeek(i){
   const m=MONTHS[i].m,first=new Date(YEAR,m,1),last=new Date(YEAR,m+1,0);
-  for(const c of [monday(addDays(today,7)),monday(today)]) if(addDays(c,6)>=first&&c<=last) return c;
+  const dow=today.getDay(),c=monday(dow===0||dow===6?addDays(today,7):today);
+  if(addDays(c,6)>=first&&c<=last) return c;
   return monday(first);
 }
 function weeksOf(i){const m=MONTHS[i].m,last=new Date(YEAR,m+1,0),o=[];for(let w=monday(new Date(YEAR,m,1));w<=last;w=addDays(w,7))o.push(w);return o}
