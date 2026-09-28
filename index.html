@@ -142,6 +142,15 @@ dialog label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weig
 dialog input,dialog textarea{font-weight:400;border:1px solid var(--line);background:var(--tinte2);border-radius:9px;padding:9px 10px;color:var(--ink)}
 dialog textarea{resize:vertical;min-height:62px}
 .req{color:#C20E1A;font-weight:400}
+#viewDlg{width:min(520px,94vw)}
+.vw{padding:20px 22px}
+.vwd{display:inline-block;background:var(--tinte);color:var(--verde);font-weight:700;border-radius:8px;padding:4px 10px;font-size:14px}
+.vw h2{margin:10px 0 12px;font-size:20px;color:var(--ink)}
+.vw dl{margin:0;display:grid;grid-template-columns:110px 1fr;gap:8px 12px;font-size:15px}
+.vw dt{color:var(--muted);font-weight:500}
+.vw dd{margin:0}
+.vw dd.ob{background:var(--warn-soft);color:var(--warn);border-radius:6px;padding:2px 8px}
+@media (max-width:480px){.vw dl{grid-template-columns:1fr;gap:2px}.vw dd{margin-bottom:8px}}
 fieldset.team{border:1px solid var(--line);border-radius:10px;padding:8px 12px 10px;margin:0}
 fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0 4px}
 #teamChecks{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 12px}
@@ -244,6 +253,18 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
       </div>
     </div>
   </form>
+</dialog>
+
+<dialog id="viewDlg">
+  <div class="vw">
+    <div class="vwd" id="vwDate"></div>
+    <h2 id="vwTitle"></h2>
+    <dl id="vwBody"></dl>
+    <div class="factions"><div style="margin-left:auto">
+      <button type="button" class="btn ghost" id="vwClose">Cerrar</button>
+      <button type="button" class="btn" id="vwEdit">Editar</button>
+    </div></div>
+  </div>
 </dialog>
 
 <dialog id="shotDlg">
@@ -353,17 +374,34 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('button,tr.act');if(!t)return;
   if(t.id==='shotBtn'){openShot(state.week);return}
   if(t.dataset.shot){openShot(parse(t.dataset.shot));return}
-  if(t.id==='incBtn'){state.q='';document.getElementById('search').value='';const f=items.filter(it=>inMonth(it,state.month)&&isInc(it));if(f[0])openForm(f[0]);return}
+  if(t.id==='incBtn'){state.q='';document.getElementById('search').value='';const f=items.filter(it=>inMonth(it,state.month)&&isInc(it));if(f[0])openView(f[0]);return}
   if(t.dataset.m!==undefined){state.month=+t.dataset.m;state.week=defaultWeek(state.month);render();return}
   if(t.dataset.view){state.view=t.dataset.view;render();return}
   if(t.dataset.wk){state.week=addDays(state.week,7*+t.dataset.wk);const mi=MONTHS.findIndex(x=>x.m===addDays(state.week,3).getMonth());if(mi>=0)state.month=mi;render();return}
   if(t.dataset.gow){state.week=parse(t.dataset.gow);state.view='semana';render();return}
   if(t.dataset.add){openForm(null,{fecha:t.dataset.add});return}
-  if(t.dataset.id){const it=items.find(x=>x.id===t.dataset.id);if(it)openForm(it)}
+  if(t.dataset.id){const it=items.find(x=>x.id===t.dataset.id);if(it)openView(it)}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches&&e.target.matches('tr.act'))e.target.click()});
 let qt;document.getElementById('search').addEventListener('input',e=>{clearTimeout(qt);qt=setTimeout(()=>{state.q=e.target.value;render()},150)});
 document.getElementById('addBtn').addEventListener('click',()=>{const m=MONTHS[state.month].m;openForm(null,{fecha:iso(today.getMonth()===m?today:new Date(YEAR,m,1))})});
+
+// activity detail (read only)
+const viewDlg=document.getElementById('viewDlg');let viewing=null;
+function openView(it){
+  viewing=it;const d=parse(it.fecha);
+  document.getElementById('vwDate').textContent=`${DOW[(d.getDay()+6)%7]} ${d.getDate()} de ${MES[d.getMonth()]}${it.hora?' · '+fmtHora(it.hora):''}`;
+  document.getElementById('vwTitle').textContent=it.actividad||'Actividad sin nombre';
+  const row=(k,v,c)=>v?`<dt>${k}</dt><dd${c?' class="'+c+'"':''}>${v}</dd>`:'';
+  document.getElementById('vwBody').innerHTML=
+    row('Tema / alcance',esc(it.tema))+row('Lugar',esc(it.lugar))+
+    row('Participantes',esc(it.participantes).split(/\s*;\s*/).filter(Boolean).join('<br>'))+
+    row('Observaciones',esc(it.observaciones),'ob');
+  viewDlg.showModal();
+}
+document.getElementById('vwClose').addEventListener('click',()=>viewDlg.close());
+document.getElementById('vwEdit').addEventListener('click',()=>{viewDlg.close();openForm(viewing)});
+viewDlg.addEventListener('click',e=>{if(e.target===viewDlg)viewDlg.close()});
 
 // activity form
 const dlg=document.getElementById('dlg'),form=document.getElementById('form');let editing=null,delArmed=false;
