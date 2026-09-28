@@ -295,7 +295,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
 
 <dialog id="shotDlg">
   <div class="bar2"><span id="shotHint">Toma el pantallazo de este recuadro o descárgalo como imagen.</span>
-    <button type="button" class="btn" id="shotDl">Descargar / compartir imagen</button>
+    <button type="button" class="btn" id="shotDl">Compartir imagen</button>
     <button type="button" class="btn ghost" id="shotClose">Cerrar</button></div>
   <div id="shotBody"></div>
 </dialog>
@@ -523,22 +523,49 @@ function shotHTML(w,fixed){
     <div class="ft"><span>Grupo Recurso Hídrico</span><span>${list.length} ${list.length===1?'actividad':'actividades'}</span></div></div>`;
 }
 const shotDlg=document.getElementById('shotDlg');
-function openShot(w){shotWeek=w;document.getElementById('shotBody').innerHTML=shotHTML(w,false);shotDlg.showModal()}
-document.getElementById('shotClose').addEventListener('click',()=>shotDlg.close());
-function loadScript(src){return new Promise((ok,ko)=>{if(window.html2canvas)return ok();const sc=document.createElement('script');sc.src=src;sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc)})}
-document.getElementById('shotDl').addEventListener('click',async e=>{
-  const b=e.target,hint=document.getElementById('shotHint');b.disabled=true;b.textContent='Generando…';
-  const holder=document.createElement('div');holder.style.cssText='position:fixed;left:-99999px;top:0';holder.innerHTML=shotHTML(shotWeek,true);document.body.appendChild(holder);
+let shotBlob=null,shotJob=0;
+const esCel=()=>matchMedia('(max-width:760px)').matches||/Android|iPhone|iPad/i.test(navigator.userAgent);
+function openShot(w){
+  shotWeek=w;shotBlob=null;const job=++shotJob;
+  document.getElementById('shotBody').innerHTML=shotHTML(w,false);
+  const b=document.getElementById('shotDl'),hint=document.getElementById('shotHint');
+  b.disabled=true;b.textContent='Preparando imagen…';hint.textContent='Un momento…';
+  shotDlg.showModal();
+  prepararImagen(w).then(bl=>{if(job!==shotJob)return;shotBlob=bl;b.disabled=false;
+    b.textContent=esCel()?'Compartir imagen':'Descargar imagen';hint.textContent='Imagen lista.'})
+  .catch(()=>{if(job!==shotJob)return;b.disabled=true;b.textContent='Descargar imagen';hint.textContent='No se pudo generar la imagen. Toma pantallazo del recuadro.'});
+}
+async function prepararImagen(w){
+  const holder=document.createElement('div');holder.style.cssText='position:fixed;left:-99999px;top:0';
+  holder.innerHTML=shotHTML(w,true);document.body.appendChild(holder);
   try{
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
     if(document.fonts&&document.fonts.ready)await document.fonts.ready;
+    const img=holder.querySelector('img');if(img&&!img.complete)await new Promise(r=>{img.onload=img.onerror=r});
     const canvas=await html2canvas(holder.firstElementChild,{scale:2,backgroundColor:'#ffffff'});
-    const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));
-    const name=`Cronograma semana ${iso(shotWeek)}.png`,file=new File([blob],name,{type:'image/png'});
-    if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:'Cronograma de la semana'});hint.textContent='Listo.';}catch(_){hint.textContent='Compartir cancelado.'}}
-    else{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);hint.textContent='Imagen descargada.';}
-  }catch(err){hint.textContent='No se pudo generar la imagen. Toma el pantallazo del recuadro.'}
-  finally{holder.remove();b.disabled=false;b.textContent='Descargar / compartir imagen'}
+    return await new Promise((ok,ko)=>canvas.toBlob(x=>x?ok(x):ko(new Error('blob')),'image/png'));
+  }finally{holder.remove()}
+}
+function mostrarParaGuardar(){
+  const url=URL.createObjectURL(shotBlob);
+  document.getElementById('shotBody').innerHTML=`<img src="${url}" alt="Cronograma de la semana" style="display:block;width:100%;height:auto">`;
+  document.getElementById('shotHint').textContent='Mantén presionada la imagen y elige "Guardar imagen".';
+}
+shotDlg.addEventListener('close',()=>{shotJob++});
+document.getElementById('shotClose').addEventListener('click',()=>shotDlg.close());
+function loadScript(src){return new Promise((ok,ko)=>{if(window.html2canvas)return ok();const sc=document.createElement('script');sc.src=src;sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc)})}
+document.getElementById('shotDl').addEventListener('click',async()=>{
+  if(!shotBlob)return;
+  const hint=document.getElementById('shotHint'),name=`Cronograma semana ${iso(shotWeek)}.png`;
+  const file=new File([shotBlob],name,{type:'image/png'});
+  if(esCel()&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:'Cronograma de la semana'});hint.textContent='Listo.'}
+    catch(err){if(err&&err.name==='AbortError')hint.textContent='Compartir cancelado.';else mostrarParaGuardar()}
+    return;
+  }
+  if(esCel()){mostrarParaGuardar();return}
+  const a=document.createElement('a');a.href=URL.createObjectURL(shotBlob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);hint.textContent='Imagen descargada.';
 });
 
 // data
