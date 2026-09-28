@@ -325,7 +325,8 @@ const nowIdx=MONTHS.findIndex(x=>x.m===today.getMonth()&&today.getFullYear()===Y
 let state={month:nowIdx>=0?nowIdx:0,view:'mes',week:null,q:'',persona:''};
 if(matchMedia('(max-width:760px)').matches){
   const dw=today.getDay(),w=monday(dw===0||dw===6?addDays(today,7):today);
-  const mi=MONTHS.findIndex(x=>x.m===addDays(w,3).getMonth()&&addDays(w,3).getFullYear()===YEAR);
+  const ref=w<=today?today:addDays(w,3);
+  const mi=MONTHS.findIndex(x=>x.m===ref.getMonth()&&ref.getFullYear()===YEAR);
   if(mi>=0){state.month=mi;state.week=w;state.view='semana'}
 }
 
@@ -349,6 +350,10 @@ function rangeTxt(w,i){
   return `${DOW[(s.getDay()+6)%7]} ${s.getDate()} al ${DOW[(e.getDay()+6)%7].toLowerCase()} ${e.getDate()} de ${MES[m]}`;
 }
 
+function rangoCompleto(w){
+  const e=addDays(w,6),d=x=>`${DOW[(x.getDay()+6)%7]} ${x.getDate()}`;
+  return w.getMonth()===e.getMonth()?`${d(w)} al ${d(e).toLowerCase()} de ${MES[e.getMonth()]}`:`${d(w)} de ${MES[w.getMonth()]} al ${d(e).toLowerCase()} de ${MES[e.getMonth()]}`;
+}
 function people(p){return esc(p).split(/\s*;\s*/).filter(Boolean).map(x=>`<div>${x}</div>`).join('')}
 function rowsFor(list,w,i){
   let html='',prev='',alt=true;
@@ -367,13 +372,13 @@ function rowsFor(list,w,i){
   });
   return html;
 }
-function tableHTML(weeks){
-  const i=state.month,all=filtered().filter(it=>inMonth(it,i));
+function tableHTML(weeks,completa){
+  const i=state.month,all=completa?filtered():filtered().filter(it=>inMonth(it,i));
   let body='';
   weeks.forEach(w=>{
     const e=addDays(w,6),list=all.filter(it=>{const d=parse(it.fecha);return d>=w&&d<=e});
     const n=weeksOf(i).findIndex(x=>iso(x)===iso(w))+1;
-    body+=`<tr class="wkrow"><td colspan="8">Semana ${n} <span>${rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span><button type="button" class="addw" data-shot="${iso(w)}">Imagen</button></td></tr>`+rowsFor(list,w,i);
+    body+=`<tr class="wkrow"><td colspan="8">Semana ${n} <span>${completa?rangoCompleto(w):rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span><button type="button" class="addw" data-shot="${iso(w)}">Imagen</button></td></tr>`+rowsFor(list,w,i);
   });
   return `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Día</th><th>Hora</th><th>Actividad</th><th>Tema / alcance</th><th>Lugar</th><th>Participantes / entidades</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
@@ -396,7 +401,7 @@ function render(){
   if(state.view==='mes') main.innerHTML=tableHTML(weeks);
   else{
     const w=state.week,n=weeks.findIndex(x=>iso(x)===iso(w))+1;
-    main.innerHTML=`<div class="weeknav"><button type="button" class="iconbtn" data-wk="-1" aria-label="Semana anterior">‹</button><button type="button" class="iconbtn" data-wk="1" aria-label="Semana siguiente">›</button><h2>Semana ${n||''}: ${rangeTxt(w,i)}</h2><button type="button" class="btn" id="shotBtn">Imagen para compartir</button></div>`+tableHTML([w]);
+    main.innerHTML=`<div class="weeknav"><button type="button" class="iconbtn" data-wk="-1" aria-label="Semana anterior">‹</button><button type="button" class="iconbtn" data-wk="1" aria-label="Semana siguiente">›</button><h2>${rangoCompleto(w)}</h2><button type="button" class="btn" id="shotBtn">Imagen para compartir</button></div>`+tableHTML([w],true);
   }
   document.getElementById('addBtn').disabled=!canWrite||!col;
   }
