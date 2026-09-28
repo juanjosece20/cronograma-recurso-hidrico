@@ -350,7 +350,7 @@ function tableHTML(weeks){
   weeks.forEach(w=>{
     const e=addDays(w,6),list=all.filter(it=>{const d=parse(it.fecha);return d>=w&&d<=e});
     const n=weeksOf(i).findIndex(x=>iso(x)===iso(w))+1;
-    body+=`<tr class="wkrow"><td colspan="8">Semana ${n} <span>${rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span><button type="button" class="addw" data-shot="${iso(w)}">Imagen</button>${canWrite&&col?`<button type="button" class="addw" data-add="${iso(w<new Date(YEAR,MONTHS[i].m,1)?new Date(YEAR,MONTHS[i].m,1):w)}">+ Agregar</button>`:''}</td></tr>`+rowsFor(list,w,i);
+    body+=`<tr class="wkrow"><td colspan="8">Semana ${n} <span>${rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span><button type="button" class="addw" data-shot="${iso(w)}">Imagen</button></td></tr>`+rowsFor(list,w,i);
   });
   return `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Día</th><th>Hora</th><th>Actividad</th><th>Tema / alcance</th><th>Lugar</th><th>Participantes / entidades</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
