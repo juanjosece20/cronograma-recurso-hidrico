@@ -153,6 +153,36 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
 .ferr{color:#C20E1A;font-size:13px;margin-top:8px;min-height:1em}
 .footer{margin-top:14px;display:flex;justify-content:flex-end}
 @media (max-width:640px){.fgrid{grid-template-columns:1fr}.search{margin-left:0;max-width:none}}
+.persona{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;font:inherit;color:var(--ink)}
+.persona.on{border-color:var(--verde2);background:var(--tinte);font-weight:700}
+#teamChecks label.all{grid-column:1/-1;font-weight:700;color:var(--verde);border-bottom:1px dashed var(--line);padding-bottom:7px;margin-bottom:2px}
+.clave{background:var(--warn-soft);border-radius:10px;padding:10px 12px;margin-top:12px}
+.clave label{color:var(--warn)}
+@media (max-width:760px){
+  .tablebox{overflow:visible;border-radius:12px}
+  .tablebox table{min-width:0}
+  .tablebox thead{display:none}
+  .tablebox tbody,.tablebox tr,.tablebox td{display:block}
+  tr.wkrow td{font-size:15px;padding:10px 12px}
+  tr.wkrow td span{display:block;margin:2px 0 0}
+  tr.wkrow td .addw{float:none;margin:8px 8px 0 0}
+  tr.act{padding:10px 14px 12px;border-top:1px solid var(--line)}
+  tr.act.cont{border-top:1px dashed var(--line)}
+  tr.act td{border:0!important;padding:2px 0;min-width:0!important;background:transparent!important}
+  tr.act.alt{background:var(--tinte2)}
+  td.d,td.dd{display:inline-block!important;text-align:left;margin-bottom:6px}
+  tr.act.cont td.d,tr.act.cont td.dd{display:none!important}
+  td.d b,td.d small{display:inline;font-size:20px}
+  td.d small{font-size:14px;margin:0 6px 0 3px}
+  td.dd{font-size:16px}
+  td.h{font-size:15px}
+  td.a{font-size:16px;margin:1px 0 2px}
+  td.tm div{-webkit-line-clamp:3}
+  td.lg:not(:empty)::before{content:"Lugar: ";color:var(--muted);font-weight:500}
+  td.p:not(:empty)::before{content:"Participantes:";display:block;color:var(--muted);font-weight:500;margin-top:4px}
+  td.o:empty,td.tm:empty,td.h:empty,td.lg:empty,td.p:empty{display:none}
+  tr.act:hover td{background:transparent}
+}
 </style>
 </head>
 <body>
@@ -182,6 +212,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
       <button type="button" data-view="mes" aria-pressed="true">Mes</button>
       <button type="button" data-view="semana" aria-pressed="false">Semana</button>
     </div>
+    <select class="persona" id="persona" aria-label="Ver actividades de"><option value="">Todo el equipo</option></select>
     <input class="search" id="search" type="search" placeholder="Buscar persona, lugar o tema…" aria-label="Buscar">
   </div>
 
@@ -204,6 +235,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
       <label class="full">Observaciones<input type="text" name="observaciones" maxlength="500"></label>
     </div>
     <datalist id="lugares"></datalist>
+    <div class="clave" id="claveBox" hidden><label>Clave del equipo (se pide una sola vez en este dispositivo)<input type="password" name="clave" autocomplete="off"></label></div>
     <div class="ferr" id="ferr"></div>
     <div class="factions">
       <button type="button" class="btn danger" id="delBtn" hidden>Eliminar</button>
@@ -230,6 +262,8 @@ const MONTHS=[{m:8,name:'Septiembre'},{m:9,name:'Octubre'},{m:10,name:'Noviembre
 const YEAR=2026;
 const DOW=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const TODOS='Todo el equipo',TODOS_RE=/todo el equipo|equipo pgirh/i;
+const store={get:k=>{try{return localStorage.getItem(k)||''}catch(_){return''}},set:(k,v)=>{try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch(_){}}};
 const API='https://script.google.com/macros/s/AKfycbzPFyCS5gX3MALPspfQ4uZmWEMHHMM74GYxWx7ooX9AiW3yiB1bG6-tzbOHx94Lj2_r/exec';
 let items=[],team=[],loaded=false,canWrite=true,col=true;
 const today=new Date();today.setHours(0,0,0,0);
@@ -242,7 +276,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const fmtHora=h=>{if(!h)return'';const[H,M]=h.split(':').map(Number);return((H%12)||12)+':'+pad(M)+(H<12?' a. m.':' p. m.')};
 const isInc=it=>!it.actividad||!it.hora||!it.tema;
 const nowIdx=MONTHS.findIndex(x=>x.m===today.getMonth()&&today.getFullYear()===YEAR);
-let state={month:nowIdx>=0?nowIdx:0,view:'mes',week:null,q:''};
+let state={month:nowIdx>=0?nowIdx:0,view:'mes',week:null,q:'',persona:''};
 
 function defaultWeek(i){
   const m=MONTHS[i].m,first=new Date(YEAR,m,1),last=new Date(YEAR,m+1,0);
@@ -253,6 +287,7 @@ function weeksOf(i){const m=MONTHS[i].m,last=new Date(YEAR,m+1,0),o=[];for(let w
 function filtered(){
   const q=state.q.trim().toLowerCase();let a=items;
   if(q)a=a.filter(it=>[it.actividad,it.tema,it.lugar,it.participantes,it.observaciones].join(' ').toLowerCase().includes(q));
+  if(state.persona){const nm=state.persona.toLowerCase();a=a.filter(it=>{const p=String(it.participantes||'').toLowerCase();return p.includes(nm)||TODOS_RE.test(p)})}
   return a.slice().sort((x,y)=>(x.fecha+(x.hora||'99')).localeCompare(y.fecha+(y.hora||'99')));
 }
 function inMonth(it,i){const d=parse(it.fecha);return d.getFullYear()===YEAR&&d.getMonth()===MONTHS[i].m}
@@ -302,7 +337,7 @@ function render(){
   const counts=weeks.map(w=>mon.filter(it=>{const d=parse(it.fecha);return d>=w&&d<=addDays(w,6)}).length),max=Math.max(1,...counts);
   const inc=mon.filter(isInc);
   document.getElementById('strip').innerHTML=`
-    <div class="kpi"><div class="n">${mon.length}</div><p>actividades en ${MONTHS[i].name.toLowerCase()}</p></div>
+    <div class="kpi"><div class="n">${mon.length}</div><p>actividades en ${MONTHS[i].name.toLowerCase()}${state.persona?' ('+esc(state.persona.split(' ')[0])+')':''}</p></div>
     <div class="weeks">${weeks.map((w,k)=>`<button type="button" class="wk" data-gow="${iso(w)}" aria-current="${state.view==='semana'&&iso(w)===iso(state.week)}" title="Ver semana ${k+1}"><b>${counts[k]}</b><span class="b" style="height:${6+counts[k]/max*38}px"></span>Sem ${k+1}</button>`).join('')}</div>
     <div class="pend">${inc.length?`${inc.length} ${inc.length===1?'actividad tiene':'actividades tienen'} datos por completar (hora, tema o nombre).<br><button type="button" id="incBtn">Ver cuáles</button>`:'Todas las actividades del mes tienen hora y tema.'}</div>`;
   const main=document.getElementById('main');
@@ -340,24 +375,38 @@ function openForm(it,pre){
   document.getElementById('ferr').textContent='';
   const f=form.elements;['fecha','hora','actividad','tema','lugar','observaciones'].forEach(k=>{f[k].value=src[k]||''});
   const parts=String(src.participantes||'').split(/\s*;\s*/).filter(Boolean);
-  const checked=new Set(parts.filter(p=>team.includes(p)));
-  f.otros.value=parts.filter(p=>!team.includes(p)).join('; ');
-  document.getElementById('teamChecks').innerHTML=team.map((n,k)=>`<label><input type="checkbox" value="${esc(n)}"${checked.has(n)?' checked':''}>${esc(n)}</label>`).join('');
+  const all=parts.some(p=>p===TODOS);
+  const checked=new Set(all?team:parts.filter(p=>team.includes(p)));
+  f.otros.value=parts.filter(p=>p!==TODOS&&!team.includes(p)).join('; ');
+  document.getElementById('teamChecks').innerHTML=`<label class="all"><input type="checkbox" id="chkAll"${all||checked.size===team.length?' checked':''}>Todo el equipo</label>`+team.map(n=>`<label><input type="checkbox" class="chk" value="${esc(n)}"${checked.has(n)?' checked':''}>${esc(n)}</label>`).join('');
+  document.getElementById('claveBox').hidden=!!store.get('clave');f.clave.value='';
   document.getElementById('saveBtn').hidden=!canWrite;
   const del=document.getElementById('delBtn');del.hidden=!(it&&canWrite);del.textContent='Eliminar';delArmed=false;
   document.getElementById('lugares').innerHTML=[...new Set(items.map(x=>x.lugar).filter(Boolean))].sort().map(l=>`<option value="${esc(l)}">`).join('');
   dlg.showModal();
 }
 document.getElementById('cancelBtn').addEventListener('click',()=>dlg.close());
+document.getElementById('teamChecks').addEventListener('change',e=>{
+  const boxes=[...document.querySelectorAll('#teamChecks .chk')],all=document.getElementById('chkAll');
+  if(e.target===all)boxes.forEach(b=>b.checked=all.checked);else all.checked=boxes.every(b=>b.checked);
+});
+const pSel=document.getElementById('persona');
+pSel.addEventListener('change',()=>{state.persona=pSel.value;store.set('persona',pSel.value);pSel.classList.toggle('on',!!pSel.value);render()});
+function fillPersona(){
+  const cur=state.persona||store.get('persona');
+  pSel.innerHTML='<option value="">Todo el equipo</option>'+team.map(n=>`<option value="${esc(n)}">Solo: ${esc(n)}</option>`).join('');
+  if(team.includes(cur)){pSel.value=cur;state.persona=cur}else{pSel.value='';state.persona=''}
+  pSel.classList.toggle('on',!!state.persona);
+}
 document.getElementById('delBtn').addEventListener('click',async e=>{
   if(!delArmed){delArmed=true;e.target.textContent='Confirmar eliminación';return}
-  try{await enviar('eliminar',{id:editing.id});dlg.close()}catch(_){document.getElementById('ferr').textContent='No se pudo eliminar. Revisa la conexión e intenta de nuevo.'}
+  try{await enviar('eliminar',{id:editing.id});dlg.close()}catch(ex){document.getElementById('ferr').textContent=ex.message==='sinclave'?'Escribe la clave del equipo para guardar.':ex.message==='clave'?'La clave del equipo no es correcta. Escríbela de nuevo.':'No se pudo eliminar. Revisa la conexión e intenta de nuevo.'}
 });
 form.addEventListener('submit',async e=>{
   e.preventDefault();const f=form.elements,err=document.getElementById('ferr');
   const data={};['fecha','hora','actividad','tema','lugar','observaciones'].forEach(k=>data[k]=f[k].value.trim());
-  const sel=[...document.querySelectorAll('#teamChecks input:checked')].map(x=>x.value);
-  data.participantes=sel.concat(f.otros.value.split(/\s*;\s*/).map(x=>x.trim()).filter(Boolean)).join('; ');
+  const boxes=[...document.querySelectorAll('#teamChecks .chk')],sel=boxes.filter(x=>x.checked).map(x=>x.value);
+  data.participantes=(boxes.length&&sel.length===boxes.length?[TODOS]:sel).concat(f.otros.value.split(/\s*;\s*/).map(x=>x.trim()).filter(Boolean)).join('; ');
   if(!data.fecha){err.textContent='Falta la fecha.';f.fecha.focus();return}
   const d=parse(data.fecha);if(d.getFullYear()!==YEAR||d.getMonth()<8){err.textContent='La fecha debe estar entre septiembre y diciembre de 2026.';return}
   if(!data.actividad){err.textContent='Escribe el nombre de la actividad.';f.actividad.focus();return}
@@ -366,7 +415,7 @@ form.addEventListener('submit',async e=>{
     if(editing){data.id=editing.id;await enviar('editar',data)}else await enviar('agregar',data);
     dlg.close();const mi=MONTHS.findIndex(x=>x.m===d.getMonth());if(mi>=0)state.month=mi;state.week=monday(d);
     render();
-  }catch(ex){err.textContent='No se pudo guardar. Revisa la conexión e intenta de nuevo.'}
+  }catch(ex){err.textContent=ex.message==='sinclave'?'Escribe la clave del equipo para guardar.':ex.message==='clave'?'La clave del equipo no es correcta. Escríbela de nuevo.':'No se pudo guardar. Revisa la conexión e intenta de nuevo.'}
   finally{b.disabled=false;b.textContent='Guardar'}
 });
 
@@ -412,7 +461,7 @@ function notice(t){const n=document.getElementById('notice');n.textContent=t;n.h
 function aplicar(d){
   if(!d||!Array.isArray(d.actividades))throw new Error('respuesta');
   items=d.actividades.filter(x=>x.id&&/^\d{4}-\d{2}-\d{2}$/.test(x.fecha));
-  if(Array.isArray(d.equipo)&&d.equipo.length)team=d.equipo;
+  if(Array.isArray(d.equipo)&&d.equipo.length){const ch=team.join('|')!==d.equipo.join('|');team=d.equipo;if(ch||!pSel.options.length||pSel.options.length===1)fillPersona()}
   loaded=true;notice('');render();
 }
 async function cargar(){
@@ -420,8 +469,12 @@ async function cargar(){
   catch(_){if(!loaded){document.getElementById('main').innerHTML='';}notice('No se pudieron cargar las actividades. Revisa tu conexión y recarga la página.')}
 }
 async function enviar(accion,datos){
-  const r=await fetch(API,{method:'POST',body:JSON.stringify({accion,datos})});
-  const d=await r.json();if(!d.ok)throw new Error(d.error||'error');aplicar(d);
+  const typed=form.elements.clave.value.trim(),clave=typed||store.get('clave');
+  const r=await fetch(API,{method:'POST',body:JSON.stringify({accion,datos,clave})});
+  const d=await r.json();
+  if(!d.ok){if(d.error==='clave'){const hadKey=!!clave;store.set('clave','');document.getElementById('claveBox').hidden=false;form.elements.clave.focus();throw new Error(hadKey?'clave':'sinclave')}throw new Error(d.error||'error')}
+  if(typed)store.set('clave',typed);
+  aplicar(d);
 }
 render();cargar();
 setInterval(()=>{if(!document.hidden&&!dlg.open)cargar()},60000);
