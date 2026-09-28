@@ -235,7 +235,6 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
       <label class="full">Observaciones<input type="text" name="observaciones" maxlength="500"></label>
     </div>
     <datalist id="lugares"></datalist>
-    <div class="clave" id="claveBox" hidden><label>Clave del equipo (se pide una sola vez en este dispositivo)<input type="password" name="clave" autocomplete="off"></label></div>
     <div class="ferr" id="ferr"></div>
     <div class="factions">
       <button type="button" class="btn danger" id="delBtn" hidden>Eliminar</button>
@@ -379,7 +378,6 @@ function openForm(it,pre){
   const checked=new Set(all?team:parts.filter(p=>team.includes(p)));
   f.otros.value=parts.filter(p=>p!==TODOS&&!team.includes(p)).join('; ');
   document.getElementById('teamChecks').innerHTML=`<label class="all"><input type="checkbox" id="chkAll"${all||checked.size===team.length?' checked':''}>Todo el equipo</label>`+team.map(n=>`<label><input type="checkbox" class="chk" value="${esc(n)}"${checked.has(n)?' checked':''}>${esc(n)}</label>`).join('');
-  document.getElementById('claveBox').hidden=!!store.get('clave');f.clave.value='';
   document.getElementById('saveBtn').hidden=!canWrite;
   const del=document.getElementById('delBtn');del.hidden=!(it&&canWrite);del.textContent='Eliminar';delArmed=false;
   document.getElementById('lugares').innerHTML=[...new Set(items.map(x=>x.lugar).filter(Boolean))].sort().map(l=>`<option value="${esc(l)}">`).join('');
@@ -400,7 +398,7 @@ function fillPersona(){
 }
 document.getElementById('delBtn').addEventListener('click',async e=>{
   if(!delArmed){delArmed=true;e.target.textContent='Confirmar eliminación';return}
-  try{await enviar('eliminar',{id:editing.id});dlg.close()}catch(ex){document.getElementById('ferr').textContent=ex.message==='sinclave'?'Escribe la clave del equipo para guardar.':ex.message==='clave'?'La clave del equipo no es correcta. Escríbela de nuevo.':'No se pudo eliminar. Revisa la conexión e intenta de nuevo.'}
+  try{await enviar('eliminar',{id:editing.id});dlg.close()}catch(ex){document.getElementById('ferr').textContent='No se pudo eliminar. Revisa la conexión e intenta de nuevo.'}
 });
 form.addEventListener('submit',async e=>{
   e.preventDefault();const f=form.elements,err=document.getElementById('ferr');
@@ -415,7 +413,7 @@ form.addEventListener('submit',async e=>{
     if(editing){data.id=editing.id;await enviar('editar',data)}else await enviar('agregar',data);
     dlg.close();const mi=MONTHS.findIndex(x=>x.m===d.getMonth());if(mi>=0)state.month=mi;state.week=monday(d);
     render();
-  }catch(ex){err.textContent=ex.message==='sinclave'?'Escribe la clave del equipo para guardar.':ex.message==='clave'?'La clave del equipo no es correcta. Escríbela de nuevo.':'No se pudo guardar. Revisa la conexión e intenta de nuevo.'}
+  }catch(ex){err.textContent='No se pudo guardar. Revisa la conexión e intenta de nuevo.'}
   finally{b.disabled=false;b.textContent='Guardar'}
 });
 
@@ -469,12 +467,8 @@ async function cargar(){
   catch(_){if(!loaded){document.getElementById('main').innerHTML='';}notice('No se pudieron cargar las actividades. Revisa tu conexión y recarga la página.')}
 }
 async function enviar(accion,datos){
-  const typed=form.elements.clave.value.trim(),clave=typed||store.get('clave');
-  const r=await fetch(API,{method:'POST',body:JSON.stringify({accion,datos,clave})});
-  const d=await r.json();
-  if(!d.ok){if(d.error==='clave'){const hadKey=!!clave;store.set('clave','');document.getElementById('claveBox').hidden=false;form.elements.clave.focus();throw new Error(hadKey?'clave':'sinclave')}throw new Error(d.error||'error')}
-  if(typed)store.set('clave',typed);
-  aplicar(d);
+  const r=await fetch(API,{method:'POST',body:JSON.stringify({accion,datos})});
+  const d=await r.json();if(!d.ok)throw new Error(d.error||'error');aplicar(d);
 }
 render();cargar();
 setInterval(()=>{if(!document.hidden&&!dlg.open)cargar()},60000);
