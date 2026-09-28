@@ -250,7 +250,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
   <main id="main"><div class="loading">Cargando actividades…</div></main>
   <footer class="pie">
     <span><b>Secretaría de Salud y Ambiente</b> · Alcaldía de Bucaramanga</span>
-    <span id="upd">Conectando…</span>
+    <span><span id="modo" hidden>Vista de consulta · </span><span id="upd">Conectando…</span></span>
   </footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -311,7 +311,9 @@ const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','se
 const TODOS='Todo el equipo',TODOS_RE=/todo el equipo|equipo pgirh/i;
 const store={get:k=>{try{return localStorage.getItem(k)||''}catch(_){return''}},set:(k,v)=>{try{v?localStorage.setItem(k,v):localStorage.removeItem(k)}catch(_){}}};
 const API='https://script.google.com/macros/s/AKfycbzPFyCS5gX3MALPspfQ4uZmWEMHHMM74GYxWx7ooX9AiW3yiB1bG6-tzbOHx94Lj2_r/exec';
-let items=[],team=[],loaded=false,canWrite=true,col=true;
+let items=[],team=[],loaded=false,col=true;
+const canWrite=!new URLSearchParams(location.search).has('consulta');
+document.getElementById('quick').hidden=!canWrite;document.getElementById('modo').hidden=canWrite;
 const today=new Date();today.setHours(0,0,0,0);
 const pad=n=>String(n).padStart(2,'0');
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
@@ -403,7 +405,9 @@ function render(){
     const w=state.week,n=weeks.findIndex(x=>iso(x)===iso(w))+1;
     main.innerHTML=`<div class="weeknav"><button type="button" class="iconbtn" data-wk="-1" aria-label="Semana anterior">‹</button><button type="button" class="iconbtn" data-wk="1" aria-label="Semana siguiente">›</button><h2>${rangoCompleto(w)}</h2><button type="button" class="btn" id="shotBtn">Imagen para compartir</button></div>`+tableHTML([w],true);
   }
-  document.getElementById('addBtn').disabled=!canWrite||!col;
+  document.getElementById('quick').hidden=!canWrite;
+  document.getElementById('vwEdit').hidden=!canWrite;
+  document.getElementById('modo').hidden=canWrite;
   }
 
 // events
@@ -476,7 +480,7 @@ document.getElementById('delBtn').addEventListener('click',async e=>{
   const it=editing,antes=items.slice();
   items=items.filter(x=>x.id!==it.id);dlg.close();render();toast('Eliminando…');
   try{await enviar('eliminar',{id:it.id});toast('✓ Actividad eliminada')}
-  catch(ex){items=antes;render();toast('No se pudo eliminar. Intenta de nuevo.',true)}
+  catch(ex){items=antes;render();if(!canWrite)return;toast('No se pudo eliminar. Intenta de nuevo.',true)}
 });
 form.addEventListener('submit',async e=>{
   e.preventDefault();const f=form.elements,err=document.getElementById('ferr');
@@ -499,7 +503,7 @@ form.addEventListener('submit',async e=>{
     if(ed){data.id=ed.id;await enviar('editar',data)}else await enviar('agregar',data);
     toast(ed?'✓ Cambios guardados':'✓ Actividad guardada');
   }catch(ex){
-    items=antes;render();toast('No se pudo guardar. Intenta de nuevo.',true);
+    items=antes;render();if(!canWrite)return;toast('No se pudo guardar. Intenta de nuevo.',true);
     editing=ed;err.textContent='No se pudo guardar. Revisa la conexión y toca Guardar otra vez.';dlg.showModal();
   }
 });
@@ -595,7 +599,8 @@ async function enviar(accion,datos){
   wseq++;pendientes++;
   try{
     const r=await fetch(API,{method:'POST',body:JSON.stringify({accion,datos})});
-    const d=await r.json();if(!d.ok)throw new Error(d.error||'error');
+    const d=await r.json();
+    if(!d.ok)throw new Error(d.error||'error');
     pendientes--;aplicar(d);
   }catch(e){pendientes--;throw e}
 }
