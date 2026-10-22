@@ -98,7 +98,8 @@ button{cursor:pointer}
   .controls{gap:8px;margin-bottom:10px}
   .months{display:flex;flex-wrap:nowrap;overflow-x:auto;width:100%;scrollbar-width:none}
   .months button{white-space:nowrap;flex:none}
-  .persona{flex:1;min-width:0}
+  .persona{flex:1 1 40%;min-width:0}
+  .search{flex:1 1 40%;min-width:0;margin-left:0;max-width:none}
   .strip{grid-template-columns:1fr;gap:8px;margin-bottom:10px}
   .kpi{display:none}
   .pend{max-width:none;font-size:12.5px;line-height:1.35;padding:7px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -123,6 +124,9 @@ tr.wkrow td{background:var(--verde2);color:#fff;font-weight:700;font-size:15px;p
 tr.wkrow td span{font-weight:400;opacity:.9;margin-left:10px}
 tr.wkrow td .addw{float:right;margin-left:6px;border:1px solid rgba(255,255,255,.6);background:transparent;color:#fff;font-weight:500;border-radius:7px;padding:2px 10px}
 tr.wkrow td .addw:hover{background:rgba(255,255,255,.15)}
+.plg{border:0;background:none;color:inherit;font:inherit;font-weight:700;padding:0;text-align:left;cursor:pointer}
+tr.wkrow td .car{display:inline-block;width:16px;margin:0!important}
+tr.wkrow.plegada td{background:#6FA067}
 tr.act{cursor:pointer}
 tr.act.alt td{background:var(--tinte2)}
 tr.act:hover td{background:var(--tinte)}
@@ -133,6 +137,7 @@ td.d b{display:block;font-size:24px;line-height:1;color:var(--verde2)}
 td.d small{display:block;font-size:12px;color:var(--muted);margin-top:2px}
 td.d .dw{display:block;font-size:12.5px;font-weight:700;margin-top:3px}
 td.h{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700;color:var(--verde2)}
+.cruce{display:inline-block;margin-left:5px;color:#B26A00;font-size:13px;cursor:help}
 .tbd{color:var(--muted);font-weight:400;font-size:13px}
 td.a{font-weight:700;min-width:250px}
 td.tm{min-width:220px;color:var(--muted);font-size:14px}
@@ -230,6 +235,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
 .ferr{color:#C20E1A;font-size:13px;margin-top:8px;min-height:1em}
 .fhint{color:var(--warn);background:var(--warn-soft);border-radius:7px;padding:5px 9px;font-size:12.5px;font-weight:400}
 @media (max-width:640px){.search{margin-left:0;max-width:none}}
+.hoybtn{padding:7px 13px}
 .persona{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;font:inherit;color:var(--ink)}
 .persona.on{border-color:var(--verde2);background:var(--tinte);font-weight:700}
 #teamChecks label.all{grid-column:1/-1;font-weight:700;color:var(--verde);border-bottom:1px dashed var(--line);padding-bottom:7px;margin-bottom:2px}
@@ -268,6 +274,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--verde);color:#fff;padding:12px 20px;border-radius:12px;font-weight:500;font-size:15px;box-shadow:0 8px 24px rgba(20,40,15,.3);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:50;max-width:90vw}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .toast.err{background:#C20E1A}
+.toast.warn{background:#8A5A00}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
 </style>
 </head>
@@ -297,6 +304,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
       <button type="button" data-view="mes" aria-pressed="true">Mes</button>
       <button type="button" data-view="semana" aria-pressed="false">Semana</button>
     </div>
+    <button type="button" class="btn ghost hoybtn" id="hoyBtn" hidden>Ir a hoy</button>
     <select class="persona" id="persona" aria-label="Ver actividades de"><option value=""></option></select>
     <input class="search" id="search" type="search" placeholder="Buscar persona, lugar o tema…" aria-label="Buscar">
   </div>
@@ -422,12 +430,16 @@ function defaultWeek(i){
   return monday(first);
 }
 function weeksOf(i){const {y,m}=MONTHS[i],last=new Date(y,m+1,0),o=[];for(let w=monday(new Date(y,m,1));w<=last;w=addDays(w,7))o.push(w);return o}
+// búsqueda sin tildes ni mayúsculas
+const plano=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+// "8:00" y "08:00" ordenan igual; sin hora va al final del día
+const horaKey=h=>{const m=/^(\d{1,2}):(\d{2})/.exec(String(h||''));return m?pad(+m[1])+':'+m[2]:''};
 function filtered(){
-  const q=state.q.trim().toLowerCase();let a=items;
-  if(q)a=a.filter(it=>[it.actividad,it.tema,it.lugar,it.participantes,it.entidades,it.observaciones].join(' ').toLowerCase().includes(q));
+  const q=plano(state.q.trim());let a=items;
+  if(q)a=a.filter(it=>plano([it.actividad,it.tema,it.lugar,it.participantes,it.entidades,it.observaciones].join(' ')).includes(q));
   if(state.inc)a=a.filter(isInc);
   if(state.persona){const nm=state.persona.toLowerCase();a=a.filter(it=>{const p=String(it.participantes||'').toLowerCase();return p.includes(nm)||TODOS_RE.test(p)})}
-  return a.slice().sort((x,y)=>(x.fecha+(x.hora||'99')).localeCompare(y.fecha+(y.hora||'99')));
+  return a.slice().sort((x,y)=>(x.fecha+(horaKey(x.hora)||'99')).localeCompare(y.fecha+(horaKey(y.hora)||'99')));
 }
 function inMonth(it,i){const d=parse(it.fecha);return d.getFullYear()===MONTHS[i].y&&d.getMonth()===MONTHS[i].m}
 function rangeTxt(w,i){
@@ -444,6 +456,14 @@ function rangoCompleto(w){
 function people(p){return String(p??'').split(/\s*;\s*/).filter(Boolean).map(x=>`<div${x.length>40?' class="w"':''}>${esc(x)}</div>`).join('')}
 const obs=it=>it.observaciones?`<span class="obs">${esc(it.observaciones)}</span>`:'';
 function invitados(e){const h=people(e);return h?`<div class="inv"><small>Entidades:</small>${h}</div>`:''}
+// cruce de horario: alguien del equipo en dos actividades el mismo día a la misma hora
+const personasDe=it=>{const p=String(it.participantes||'').split(/\s*;\s*/).filter(Boolean);return p.includes(TODOS)?team.slice():p.filter(x=>team.includes(x))};
+function crucesDe(it,lista){
+  const k=horaKey(it.hora),yo=personasDe(it);if(!k||!yo.length)return[];
+  return lista.filter(o=>o.id!==it.id&&o.fecha===it.fecha&&horaKey(o.hora)===k).map(o=>({otra:o,comunes:personasDe(o).filter(n=>yo.includes(n))})).filter(c=>c.comunes.length);
+}
+const textoCruce=cs=>cs.map(c=>`${c.comunes.length===team.length?'Todo el equipo':c.comunes.join(', ')} también en «${c.otra.actividad||'Actividad sin nombre'}»`).join(' · ');
+let cruces=new Map();
 function rowsFor(list,w,i){
   let html='',prev='',alt=true;
   if(!list.length) return `<tr class="empty"><td colspan="6">Sin actividades esta semana.</td></tr>`;
@@ -451,7 +471,7 @@ function rowsFor(list,w,i){
     const d=parse(it.fecha),first=it.fecha!==prev;if(first)alt=!alt;prev=it.fecha;
     html+=`<tr class="act ${first?'first':'cont'}${alt?' alt':''}${it.fecha===iso(today)?' hoy':''}${it._pend?' pend':''}${it.fecha===iso(today)&&first?' today':''}" data-id="${esc(it.id)}" tabindex="0">
       <td class="d"><b>${pad(d.getDate())}</b><small>${MES[d.getMonth()].slice(0,3)}</small><span class="dw">${DOW[(d.getDay()+6)%7]}</span></td>
-      <td class="h">${fmtHora(it.hora)}</td>
+      <td class="h">${fmtHora(it.hora)}${cruces.has(it.id)?`<span class="cruce" title="Cruce de horario: ${esc(textoCruce(cruces.get(it.id)))}" aria-label="Cruce de horario">⚠</span>`:''}</td>
       <td class="a">${esc(it.actividad)}${obs(it)}</td>
       <td class="tm"><div>${esc(it.tema)}</div></td>
       <td class="lg">${esc(it.lugar)}</td>
@@ -460,20 +480,28 @@ function rowsFor(list,w,i){
   });
   return html;
 }
+// semanas ya pasadas del mes: plegadas por defecto en escritorio (no mientras se busca o filtra)
+const plegadas={};
+const pasada=w=>addDays(w,6)<today;
+function plegada(w){const k=iso(w);if(k in plegadas)return plegadas[k];return pasada(w)&&!state.q.trim()&&!state.inc&&!matchMedia('(max-width:760px)').matches}
 function tableHTML(weeks,completa){
   const i=state.month,all=completa?filtered():filtered().filter(it=>inMonth(it,i));
   let body='';
   weeks.forEach(w=>{
     const e=addDays(w,6),list=all.filter(it=>{const d=parse(it.fecha);return d>=w&&d<=e});
     if(state.inc&&!completa&&!list.length)return;
-    const n=weeksOf(i).findIndex(x=>iso(x)===iso(w))+1;
-    body+=`<tr class="wkrow"><td colspan="6">Semana ${n} <span>${completa?rangoCompleto(w):rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span>${completa?'':`<button type="button" class="addw" data-share="${iso(w)}">Compartir</button>`}</td></tr>`+rowsFor(list,w,i);
+    const n=weeksOf(i).findIndex(x=>iso(x)===iso(w))+1,txt=`Semana ${n} <span>${completa?rangoCompleto(w):rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span>`;
+    if(completa){body+=`<tr class="wkrow"><td colspan="6">${txt}</td></tr>`+rowsFor(list,w,i);return}
+    const abierta=!plegada(w);
+    body+=`<tr class="wkrow${abierta?'':' plegada'}"><td colspan="6"><button type="button" class="plg" data-plg="${iso(w)}" aria-expanded="${abierta}"><span class="car" aria-hidden="true">${abierta?'▾':'▸'}</span>${txt}</button><button type="button" class="addw" data-share="${iso(w)}">Compartir</button></td></tr>`+(abierta?rowsFor(list,w,i):'');
   });
   return `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Actividad</th><th>Tema / alcance</th><th>Lugar</th><th>Participantes</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function render(){
   const i=state.month,all=filtered();
+  cruces=new Map();items.forEach(it=>{const c=crucesDe(it,items);if(c.length)cruces.set(it.id,c)});
+  document.getElementById('hoyBtn').hidden=nowIdx<0;
   document.getElementById('mbadge').innerHTML=`${MONTHS[i].name.toUpperCase()}<small>${MONTHS[i].y}</small>`;
   document.getElementById('months').innerHTML=MONTHS.map((x,k)=>`<button type="button" data-m="${k}" aria-pressed="${k===i}"><b>${x.name}${x.y!==today.getFullYear()?' '+x.y:''}</b>${loaded?`<span>${all.filter(it=>inMonth(it,k)).length}</span>`:''}</button>`).join('');
   {const nav=document.getElementById('months'),b=nav.querySelector('[aria-pressed="true"]');if(b&&nav.scrollWidth>nav.clientWidth)nav.scrollLeft=b.offsetLeft-(nav.clientWidth-b.offsetWidth)/2}
@@ -503,6 +531,8 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('button,tr.act');if(!t)return;
   if(t.id==='shotBtn'){openShare(state.week);return}
   if(t.dataset.share){openShare(parse(t.dataset.share));return}
+  if(t.dataset.plg){const w=parse(t.dataset.plg);plegadas[t.dataset.plg]=!plegada(w);render();return}
+  if(t.id==='hoyBtn'){irAHoy();return}
   if(t.id==='incBtn'){state.inc=!state.inc;if(state.inc){state.q='';document.getElementById('search').value='';state.view='mes'}render();return}
   if(t.dataset.m!==undefined){state.month=+t.dataset.m;state.week=defaultWeek(state.month);render();return}
   if(t.dataset.view){state.view=t.dataset.view;render();return}
@@ -512,6 +542,13 @@ document.addEventListener('click',e=>{
   if(t.dataset.id){const it=items.find(x=>x.id===t.dataset.id);if(it)openView(it)}
 });
 document.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches&&e.target.matches('tr.act'))e.target.click()});
+function irAHoy(){
+  if(nowIdx<0)return;
+  state.month=nowIdx;state.week=defaultWeek(nowIdx);render();
+  const el=document.querySelector('tr.act.today')||document.querySelector(`[data-share="${iso(state.week)}"]`)||document.getElementById('main');
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+}
+if(matchMedia('(max-width:760px)').matches)document.getElementById('search').placeholder='Buscar…';
 let qt;document.getElementById('search').addEventListener('input',e=>{clearTimeout(qt);qt=setTimeout(()=>{state.q=e.target.value;render()},150)});
 document.getElementById('addBtn').addEventListener('click',()=>{const {y,m}=MONTHS[state.month];openForm(null,{fecha:iso(idxOf(today)===state.month?today:new Date(y,m,1))})});
 
@@ -526,7 +563,8 @@ function openView(it){
     row('Tema / alcance',esc(it.tema))+row('Lugar',esc(it.lugar))+
     row('Participantes',esc(it.participantes).split(/\s*;\s*/).filter(Boolean).join('<br>'))+
     row('Entidades',esc(it.entidades).split(/\s*;\s*/).filter(Boolean).join('<br>'))+
-    row('Observaciones',esc(it.observaciones),'ob');
+    row('Observaciones',esc(it.observaciones),'ob')+
+    row('Cruce de horario',cruces.has(it.id)?esc(textoCruce(cruces.get(it.id))):'','ob');
   viewDlg.showModal();
 }
 document.getElementById('vwClose').addEventListener('click',()=>viewDlg.close());
@@ -590,7 +628,6 @@ form.addEventListener('submit',async e=>{
   ['actividad','lugar','observaciones'].forEach(k=>data[k]=limpiar(data[k]));
   data.tema=data.tema.split('\n').map(l=>l.replace(/\s+/g,' ').trim()).join('\n').replace(/\n{3,}/g,'\n\n').trim();data.tema=mayusInicial(data.tema);
   data.entidades=data.entidades.split(/\s*;\s*/).map(limpiar).filter(Boolean).join('; ');
-  const gritos=Object.keys(CAMPOS).filter(k=>enMayusculas(data[k]));
   const boxes=[...document.querySelectorAll('#teamChecks .chk')],sel=boxes.filter(x=>x.checked).map(x=>x.value);
   data.participantes=(boxes.length&&sel.length===boxes.length?[TODOS]:sel).join('; ');
   if(!data.fecha){err.textContent='Falta la fecha.';f.fecha.focus();return}
@@ -601,6 +638,8 @@ form.addEventListener('submit',async e=>{
     if(items.some(x=>x.fecha===data.fecha&&k(x.actividad)===k(data.actividad))){
       dupOk=true;err.textContent='Ya existe «'+data.actividad+'» ese día. Si es otra actividad, pulsa Guardar de nuevo.';return}
   }
+  const gritos=Object.keys(CAMPOS).filter(k=>enMayusculas(data[k]));
+  const cruce=crucesDe({...data,id:editing?editing.id:''},items);
   const antes=items.slice(),ed=editing,tmp={...data,id:ed?ed.id:'tmp'+Date.now(),_pend:true};
   items=ed?items.map(x=>x.id===ed.id?tmp:x):items.concat(tmp);
   dlg.close();const mi=idxOf(d);if(mi>=0)state.month=mi;state.week=monday(d);
@@ -608,7 +647,10 @@ form.addEventListener('submit',async e=>{
   try{
     if(ed){data.id=ed.id;await enviar('editar',data)}else await enviar('agregar',data);
     const ok=ed?'✓ Cambios guardados':'✓ Actividad guardada';
-    if(gritos.length)toast(`${ok}. Sugerencia: en ${gritos.map(k=>'«'+CAMPOS[k]+'»').join(', ')} escribe en minúsculas normales; el texto en MAYÚSCULAS es más difícil de leer.`,false,7000);
+    const avisos=[];
+    if(cruce.length)avisos.push(`Cruce de horario a las ${fmtHora(data.hora)}: ${textoCruce(cruce)}.`);
+    if(gritos.length)avisos.push(`Sugerencia: en ${gritos.map(k=>'«'+CAMPOS[k]+'»').join(', ')} escribe en minúsculas normales; el texto en MAYÚSCULAS es más difícil de leer.`);
+    if(avisos.length)toast(`${ok}. ${avisos.join(' ')}`,cruce.length?'warn':false,9000);
     else toast(ok);
   }catch(ex){
     items=antes;render();if(!canWrite)return;toast('No se pudo guardar. Intenta de nuevo.',true);
@@ -846,7 +888,7 @@ function dibujarPDF({logo,reg,neg,filas,rng,lineas,cont,n}){
 }
 
 // data
-let tt;function toast(t,bad,ms){const el=document.getElementById('toast');el.textContent=t;el.classList.toggle('err',!!bad);el.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('on'),ms||3000)}
+let tt;function toast(t,bad,ms){const el=document.getElementById('toast');el.textContent=t;el.classList.toggle('err',bad===true);el.classList.toggle('warn',bad==='warn');el.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('on'),ms||3000)}
 function notice(t){const n=document.getElementById('notice');n.textContent=t;n.hidden=!t}
 let firma='',wseq=0,pendientes=0;
 function aplicar(d,desdeCache){
