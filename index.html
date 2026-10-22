@@ -87,7 +87,7 @@ button{cursor:pointer}
 /* excel-like table */
 .tablebox{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow-x:auto;box-shadow:0 1px 0 var(--line)}
 table{width:100%;border-collapse:collapse;min-width:1000px}
-thead th{position:sticky;top:0;z-index:1;background:var(--verde);color:#fff;font-weight:700;font-size:14.5px;text-align:left;padding:12px 12px;letter-spacing:.01em}
+thead th{position:sticky;top:0;z-index:1;background:var(--verde);color:#fff;font-weight:700;font-size:12.5px;text-align:left;padding:12px 12px;letter-spacing:.07em;text-transform:uppercase}
 td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:top;font-size:14.5px;line-height:1.4}
 tr.wkrow td{background:var(--verde2);color:#fff;font-weight:700;font-size:15px;padding:10px 12px;border-top:0}
 tr.wkrow td span{font-weight:400;opacity:.9;margin-left:10px}
@@ -135,7 +135,7 @@ tr.today td.dd::after{content:"hoy";margin-left:6px;background:var(--amarillo);c
 .shot .sh .g{display:inline-block;margin:6px 0 0;background:#D8E5B0;color:#285F19;font-size:21px;font-weight:700;padding:5px 14px;border-radius:9px;border-left:6px solid #F8DC0B}
 .shot .sh p{margin:6px 0 0;font-size:16px;color:#1F2A1C;font-weight:500}
 .shot table{min-width:0;border:1px solid #D5E0CC}
-.shot th{background:#285F19;color:#fff;font-size:15px;padding:10px 12px;text-align:left;font-weight:700}
+.shot th{background:#285F19;color:#fff;font-size:13px;padding:10px 12px;text-align:left;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
 .shot td{font-size:15px;padding:10px 12px;border-top:1px solid #D5E0CC;color:#1F2A1C;vertical-align:top}
 .shot tr.day td{background:#EAF2E1;font-weight:700;color:#285F19;font-size:15.5px;border-top:2px solid #43883D}
 .shot td.hh{white-space:nowrap;font-weight:700;color:#43883D;width:100px}
@@ -274,9 +274,8 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
       <label class="full">Actividad <span class="req">obligatoria</span><input type="text" name="actividad" maxlength="200" spellcheck="true" lang="es" autocapitalize="sentences"></label>
       <label class="full">Tema / alcance<textarea name="tema" maxlength="1500" spellcheck="true" lang="es" autocapitalize="sentences"></textarea></label>
       <label>Lugar<input type="text" name="lugar" maxlength="150" list="lugares" spellcheck="true" lang="es" autocapitalize="sentences"></label>
-      <label>Otros participantes<input type="text" name="otros" maxlength="300" placeholder="Personas fuera del equipo; separa con ;"></label>
+      <label>Entidades / invitados<input type="text" name="entidades" maxlength="500" placeholder="Ej.: CDMB; JAC La Esmeralda" spellcheck="true" lang="es" autocapitalize="sentences"></label>
       <fieldset class="full team"><legend>Participantes del equipo</legend><div id="teamChecks"></div></fieldset>
-      <label class="full">Entidades / invitados<input type="text" name="entidades" maxlength="500" placeholder="Separa con punto y coma. Ej.: CDMB; JAC La Esmeralda" spellcheck="true" lang="es" autocapitalize="sentences"></label>
       <label class="full">Observaciones<input type="text" name="observaciones" maxlength="500" spellcheck="true" lang="es" autocapitalize="sentences"></label>
     </div>
     <datalist id="lugares"></datalist>
@@ -395,7 +394,7 @@ function tableHTML(weeks,completa){
     const n=weeksOf(i).findIndex(x=>iso(x)===iso(w))+1;
     body+=`<tr class="wkrow"><td colspan="8">Semana ${n} <span>${completa?rangoCompleto(w):rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span><button type="button" class="addw" data-shot="${iso(w)}">Imagen</button></td></tr>`+rowsFor(list,w,i);
   });
-  return `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Día</th><th>Hora</th><th>Actividad</th><th>Tema / alcance</th><th>Lugar</th><th>Participantes / entidades</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Día</th><th>Hora</th><th>Actividad</th><th>Tema / alcance</th><th>Lugar</th><th>Participantes</th><th>Observaciones</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function render(){
@@ -469,7 +468,10 @@ function openForm(it,pre){
   const parts=String(src.participantes||'').split(/\s*;\s*/).filter(Boolean);
   const all=parts.some(p=>p===TODOS);
   const checked=new Set(all?team:parts.filter(p=>team.includes(p)));
-  f.otros.value=parts.filter(p=>p!==TODOS&&!team.includes(p)).join('; ');
+  // datos viejos: lo que no es del equipo pasa a invitados (comas fuera de paréntesis → ;)
+  const viejos=parts.filter(p=>p!==TODOS&&!team.includes(p)).flatMap(p=>p.split(/\s*,\s*(?![^()]*\))/)).map(x=>x.trim()).filter(Boolean);
+  const inv=String(src.entidades||'').split(/\s*;\s*/).filter(Boolean);
+  f.entidades.value=[...new Set(inv.concat(viejos))].join('; ');
   document.getElementById('teamChecks').innerHTML=`<label class="all"><input type="checkbox" id="chkAll"${all||checked.size===team.length?' checked':''}>${TODOS}</label>`+team.map(n=>`<label><input type="checkbox" class="chk" value="${esc(n)}"${checked.has(n)?' checked':''}>${esc(n)}</label>`).join('');
   document.getElementById('saveBtn').hidden=!canWrite;
   const del=document.getElementById('delBtn');del.hidden=!(it&&canWrite);del.textContent='Eliminar';delArmed=false;
@@ -509,7 +511,7 @@ form.addEventListener('submit',async e=>{
   data.entidades=data.entidades.split(/\s*;\s*/).map(limpiar).filter(Boolean).join('; ');
   const gritos=Object.keys(CAMPOS).filter(k=>enMayusculas(data[k]));
   const boxes=[...document.querySelectorAll('#teamChecks .chk')],sel=boxes.filter(x=>x.checked).map(x=>x.value);
-  data.participantes=(boxes.length&&sel.length===boxes.length?[TODOS]:sel).concat(f.otros.value.split(/\s*;\s*/).map(x=>x.trim()).filter(Boolean)).join('; ');
+  data.participantes=(boxes.length&&sel.length===boxes.length?[TODOS]:sel).join('; ');
   if(!data.fecha){err.textContent='Falta la fecha.';f.fecha.focus();return}
   const d=parse(data.fecha);if(d.getFullYear()!==YEAR||d.getMonth()<8){err.textContent='La fecha debe estar entre septiembre y diciembre de 2026.';return}
   if(!data.actividad){err.textContent='Escribe el nombre de la actividad.';f.actividad.focus();return}
