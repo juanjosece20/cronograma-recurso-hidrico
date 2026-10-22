@@ -192,7 +192,14 @@ dialog h2{margin:0 0 12px;font-size:19px;color:var(--verde2)}
 dialog label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:500;color:var(--muted)}
 dialog input,dialog textarea{font-weight:400;border:1px solid var(--line);background:var(--tinte2);border-radius:9px;padding:9px 10px;color:var(--ink)}
 dialog textarea{resize:vertical;min-height:62px}
-.req{color:#C20E1A;font-weight:400}
+.req{color:#C20E1A;font-weight:700}
+.oblig{margin:-6px 0 12px;font-size:12px;color:var(--muted)}
+/* hora vacía: se muestra "Opcional" en vez de --:-- */
+.hora{position:relative;display:flex}
+.hora input{flex:1;min-width:0}
+.hora.vacio input:not(:focus){color:transparent}
+.hora.vacio input:not(:focus)::-webkit-datetime-edit{color:transparent}
+.hora.vacio:not(:focus-within)::after{content:"Opcional";position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#8A9585;font-weight:400;pointer-events:none}
 #viewDlg{width:min(520px,94vw)}
 #shareDlg{width:min(440px,94vw)}
 .shr{margin:-6px 0 14px;color:var(--muted)}
@@ -222,7 +229,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
 .factions div{display:flex;gap:8px}
 .ferr{color:#C20E1A;font-size:13px;margin-top:8px;min-height:1em}
 .fhint{color:var(--warn);background:var(--warn-soft);border-radius:7px;padding:5px 9px;font-size:12.5px;font-weight:400}
-@media (max-width:640px){.fgrid{grid-template-columns:1fr}.search{margin-left:0;max-width:none}}
+@media (max-width:640px){.search{margin-left:0;max-width:none}}
 .persona{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 10px;font:inherit;color:var(--ink)}
 .persona.on{border-color:var(--verde2);background:var(--tinte);font-weight:700}
 #teamChecks label.all{grid-column:1/-1;font-weight:700;color:var(--verde);border-bottom:1px dashed var(--line);padding-bottom:7px;margin-bottom:2px}
@@ -307,14 +314,15 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
   <form id="form" novalidate>
     <h2 id="dlgTitle">Agregar actividad</h2>
     <div class="doubt" id="doubt" hidden></div>
+    <p class="oblig"><span class="req" aria-hidden="true">*</span> Obligatorio</p>
     <div class="fgrid">
-      <label>Fecha <span class="req">obligatoria</span><input type="date" name="fecha"></label>
-      <label>Hora<input type="time" name="hora"></label>
-      <label class="full">Actividad <span class="req">obligatoria</span><input type="text" name="actividad" maxlength="200" spellcheck="true" lang="es" autocapitalize="sentences"><span class="fhint" id="actHint" hidden>Título largo: deja lo esencial y pon el detalle en Tema / alcance.</span></label>
+      <label><span>Fecha <span class="req" aria-hidden="true">*</span></span><input type="date" name="fecha" aria-required="true"></label>
+      <label><span>Hora</span><span class="hora vacio"><input type="time" name="hora"></span></label>
+      <label class="full"><span>Actividad <span class="req" aria-hidden="true">*</span></span><input aria-required="true" type="text" name="actividad" maxlength="200" spellcheck="true" lang="es" autocapitalize="sentences"><span class="fhint" id="actHint" hidden>Título largo: deja lo esencial y pon el detalle en Tema / alcance.</span></label>
       <label class="full">Tema / alcance<textarea name="tema" maxlength="1500" spellcheck="true" lang="es" autocapitalize="sentences"></textarea></label>
-      <label>Lugar<input type="text" name="lugar" maxlength="150" list="lugares" spellcheck="true" lang="es" autocapitalize="sentences"></label>
-      <label>Entidades<input type="text" name="entidades" maxlength="500" placeholder="Ej.: CDMB; JAC La Esmeralda" spellcheck="true" lang="es" autocapitalize="sentences"></label>
+      <label class="full">Lugar<input type="text" name="lugar" maxlength="150" list="lugares" spellcheck="true" lang="es" autocapitalize="sentences"></label>
       <fieldset class="full team"><legend>Participantes del equipo</legend><div id="teamChecks"></div></fieldset>
+      <label class="full">Entidades<input type="text" name="entidades" maxlength="500" placeholder="Ej.: CDMB; JAC La Esmeralda" spellcheck="true" lang="es" autocapitalize="sentences"></label>
       <label class="full">Observaciones<input type="text" name="observaciones" maxlength="500" spellcheck="true" lang="es" autocapitalize="sentences"></label>
     </div>
     <datalist id="lugares"></datalist>
@@ -532,7 +540,7 @@ function openForm(it,pre){
   document.getElementById('dlgTitle').textContent=it?(canWrite?'Editar actividad':'Actividad'):('Agregar actividad');
   const dbx=document.getElementById('doubt');dbx.hidden=!pre.dudas;dbx.textContent=pre.dudas?'Revisa: '+pre.dudas:'';
   document.getElementById('ferr').textContent='';
-  const f=form.elements;['fecha','hora','actividad','tema','lugar','entidades','observaciones'].forEach(k=>{f[k].value=src[k]||''});
+  const f=form.elements;['fecha','hora','actividad','tema','lugar','entidades','observaciones'].forEach(k=>{f[k].value=src[k]||''});horaVacia();
   const parts=String(src.participantes||'').split(/\s*;\s*/).filter(Boolean);
   const all=parts.some(p=>p===TODOS);
   const checked=new Set(all?team:parts.filter(p=>team.includes(p)));
@@ -548,6 +556,8 @@ function openForm(it,pre){
   dlg.showModal();
 }
 document.getElementById('cancelBtn').addEventListener('click',()=>dlg.close());
+const horaVacia=()=>{const h=form.elements.hora;h.parentElement.classList.toggle('vacio',!h.value)};
+['input','change','blur'].forEach(ev=>form.elements.hora.addEventListener(ev,horaVacia));
 const actHint=()=>{document.getElementById('actHint').hidden=form.elements.actividad.value.trim().length<=70};
 form.elements.actividad.addEventListener('input',actHint);
 document.getElementById('teamChecks').addEventListener('change',e=>{
