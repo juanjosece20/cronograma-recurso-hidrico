@@ -719,52 +719,120 @@ let logoPNG=null;
 function cargarLogo(){
   return logoPNG||(logoPNG=new Promise((ok,ko)=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0);ok({src:c.toDataURL('image/jpeg',.92),r:im.naturalHeight/im.naturalWidth})};im.onerror=()=>{logoPNG=null;ko(new Error('logo'))};im.src=document.querySelector('.head img').src}));
 }
+let fuentes=null;
+function cargarFuentes(){
+  const b64=buf=>{const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
+  return fuentes||(fuentes=Promise.all(['Ubuntu-Regular.ttf','Ubuntu-Bold.ttf'].map(f=>fetch('fonts/'+f).then(r=>{if(!r.ok)throw new Error(f);return r.arrayBuffer()}).then(b64))).catch(e=>{fuentes=null;throw e}));
+}
+// mismo diseño que la imagen semanal, con texto seleccionable
 async function crearPDF(w){
   await loadScript(JSPDF);await loadScript(AUTOTABLE);
-  const logo=await cargarLogo(),list=semana(w);
-  const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'letter'});
-  const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),M=12;
-  const VERDE=[40,95,25],VERDE2=[67,136,61],TINTA=[31,42,28],GRIS=[122,135,117];
-  doc.setProperties({title:`Cronograma ${EQUIPO} – semana del ${rangoTexto(w)}`,author:GRUPO});
-  const encabezado=()=>{
-    doc.addImage(logo.src,'JPEG',M,8,50,50*logo.r);
-    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(...VERDE);
-    doc.text(`Cronograma – ${EQUIPO}`,W-M,15,{align:'right'});
-    doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(...TINTA);
-    doc.text(`Semana del ${rangoTexto(w)}`,W-M,21.5,{align:'right'});
-    doc.setFillColor(...VERDE2);doc.rect(M,27,W-2*M,1.1,'F');
-    doc.setFillColor(248,220,11);doc.rect(M,27,18,1.1,'F');
-  };
+  const [logo,[reg,neg]]=await Promise.all([cargarLogo(),cargarFuentes()]),list=semana(w),rng=rangoTexto(w);
   const lineas=s=>String(s||'').split(/\s*;\s*/).filter(Boolean).join('\n');
   let prev='';
-  const body=list.map(it=>{
-    const d=parse(it.fecha),fecha=it.fecha!==prev?`${DOW[(d.getDay()+6)%7]}\n${pad(d.getDate())} ${MES[d.getMonth()].slice(0,3)}`:'';prev=it.fecha;
-    const hora=it.hora?{content:fmtHora(it.hora)}:{content:'Por definir',styles:{textColor:GRIS,fontStyle:'normal'}};
-    return [fecha,hora,it.actividad||'',it.tema||'',it.lugar||'',lineas(it.participantes),lineas(it.entidades),it.observaciones||''];
+  const filas=list.map(it=>{const d=parse(it.fecha),dia=`${DOW[(d.getDay()+6)%7]} ${d.getDate()} de ${MES[d.getMonth()]}`,primera=it.fecha!==prev;prev=it.fecha;return {it,dia,primera}});
+  // la franja del día va dentro de la primera fila del día (nunca queda sola al final de una página);
+  // si una página empieza a mitad de un día, se repite con "(continuación)". Se recalcula hasta que la paginación no cambie.
+  let cont=new Set(),r;
+  for(let k=0;k<4;k++){
+    r=dibujarPDF({logo,reg,neg,filas,rng,lineas,cont,n:list.length});
+    const nuevo=new Set(r.inicios.filter(i=>!filas[i].primera));
+    if([...nuevo].join()===[...cont].join())break;
+    cont=nuevo;
+  }
+  return r.doc.output('blob');
+}
+function dibujarPDF({logo,reg,neg,filas,rng,lineas,cont,n}){
+  const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'letter'});
+  doc.addFileToVFS('Ubuntu-Regular.ttf',reg);doc.addFont('Ubuntu-Regular.ttf','Ubuntu','normal');
+  doc.addFileToVFS('Ubuntu-Bold.ttf',neg);doc.addFont('Ubuntu-Bold.ttf','Ubuntu','bold');
+  const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),M=12,F='Ubuntu',TOP=40,PAD=2.4,BANDA=8.5;
+  const VERDE=[40,95,25],VERDE2=[67,136,61],TINTA=[31,42,28],GRIS=[92,107,87],GRIS2=[122,135,117],LINEA=[213,224,204];
+  const COLS=[26,100,52,W-2*M-178];
+  doc.setProperties({title:`Cronograma de actividades – ${GRUPO} – semana del ${rng}`,author:GRUPO});
+  const encabezado=()=>{
+    doc.addImage(logo.src,'JPEG',M,9,20/logo.r,20);
+    doc.setFont(F,'bold');doc.setFontSize(17);doc.setTextColor(...VERDE);
+    doc.text('Cronograma de actividades',W-M,15,{align:'right'});
+    doc.setFontSize(13);const gw=doc.getTextWidth(GRUPO)+9,gx=W-M-gw;
+    doc.setFillColor(216,229,176);doc.roundedRect(gx,18,gw,8,1.6,1.6,'F');
+    doc.setFillColor(248,220,11);doc.rect(gx,18,1.7,8,'F');
+    doc.text(GRUPO,gx+5,23.7);
+    doc.setFont(F,'normal');doc.setFontSize(11);doc.setTextColor(...TINTA);doc.text(`Semana del ${rng}`,W-M,32,{align:'right'});
+    doc.setFillColor(...VERDE2);doc.rect(M,35,W-2*M,1.3,'F');
+  };
+  // bloques de texto con tamaños y colores mezclados (actividad + observación + tema, participantes + entidades)
+  const LH=s=>s*1.25*25.4/72;
+  const bloque=(partes,ancho)=>{
+    let h=0;const ops=[];
+    partes.filter(p=>p.t).forEach(p=>{
+      doc.setFont(F,p.bold?'bold':'normal');doc.setFontSize(p.size);
+      const lines=doc.splitTextToSize(p.t,ancho-(p.tag?3:0)),lh=LH(p.size);
+      h+=p.gap||0;ops.push({...p,lines,y:h,lh});h+=lines.length*lh+(p.tag?1.2:0);
+    });
+    return {h,draw:(x,y)=>ops.forEach(o=>{
+      doc.setFont(F,o.bold?'bold':'normal');doc.setFontSize(o.size);
+      if(o.tag){doc.setFillColor(253,243,196);doc.roundedRect(x,y+o.y,Math.max(...o.lines.map(l=>doc.getTextWidth(l)))+3,o.lines.length*o.lh+1.2,1,1,'F')}
+      doc.setTextColor(...o.color);doc.text(o.lines,x+(o.tag?1.5:0),y+o.y+(o.tag?.6:0),{baseline:'top',lineHeightFactor:1.25});
+    })};
+  };
+  const body=filas.map(({it,dia,primera},i)=>{
+    const banda=primera?dia:cont.has(i)?dia+' (continuación)':'';
+    const hora=it.hora?{content:fmtHora(it.hora)}:{content:'Por definir',styles:{textColor:GRIS2,fontStyle:'normal',fontSize:8.5}};
+    hora.banda=banda;
+    return [hora,{content:'',partes:[
+      {t:it.actividad,size:9.5,bold:true,color:TINTA},
+      {t:it.observaciones,size:8,bold:true,color:[138,90,0],tag:true,gap:1.2},
+      {t:it.tema,size:8.5,color:GRIS,gap:1}]},
+      it.lugar||'',
+      {content:'',partes:[
+      {t:lineas(it.participantes),size:9.5,color:TINTA},
+      {t:it.entidades?'Entidades:':'',size:8,bold:true,color:GRIS2,gap:it.participantes?1.8:0},
+      {t:lineas(it.entidades),size:9,color:TINTA}]}];
   });
-  if(list.length){
+  const inicios=[];let pag=0;
+  if(filas.length){
     doc.autoTable({
-      head:[['Fecha','Hora','Actividad','Tema / alcance','Lugar','Participantes','Entidades','Observaciones']],body,
-      startY:32,margin:{top:32,left:M,right:M,bottom:16},rowPageBreak:'avoid',
-      styles:{font:'helvetica',fontSize:8,cellPadding:1.8,textColor:TINTA,lineColor:[213,224,204],lineWidth:.2,valign:'top',overflow:'linebreak'},
-      headStyles:{fillColor:VERDE,textColor:255,fontStyle:'bold',fontSize:8.5},
-      alternateRowStyles:{fillColor:[246,249,242]},
-      columnStyles:{0:{cellWidth:19,fontStyle:'bold',textColor:VERDE2},1:{cellWidth:17,fontStyle:'bold',textColor:VERDE2},2:{cellWidth:42,fontStyle:'bold'},3:{cellWidth:'auto',textColor:[92,107,87]},4:{cellWidth:28},5:{cellWidth:39},6:{cellWidth:32},7:{cellWidth:25,textColor:[138,90,0]}},
-      didDrawPage:encabezado
+      head:[['HORA','ACTIVIDAD','LUGAR','PARTICIPANTES']],body,theme:'plain',
+      startY:TOP,margin:{top:TOP,left:M,right:M,bottom:16},rowPageBreak:'avoid',
+      styles:{font:F,fontSize:9.5,cellPadding:PAD,textColor:TINTA,lineColor:LINEA,lineWidth:{top:.25},valign:'top',overflow:'linebreak'},
+      headStyles:{fillColor:VERDE,textColor:255,fontStyle:'bold',fontSize:8.5,lineWidth:0},
+      columnStyles:{0:{cellWidth:COLS[0],fontStyle:'bold',textColor:VERDE2,overflow:'visible'},1:{cellWidth:COLS[1]},2:{cellWidth:COLS[2]},3:{cellWidth:COLS[3]}},
+      didParseCell:d=>{
+        if(d.section!=='body')return;
+        const r=d.cell.raw,banda=d.row.raw[0].banda?BANDA:0;
+        if(banda)d.cell.styles.cellPadding={top:PAD+banda,right:PAD,bottom:PAD,left:PAD};
+        if(r&&r.partes){r.b=bloque(r.partes,COLS[d.column.index]-2*PAD);d.cell.styles.minCellHeight=r.b.h+2*PAD+banda}
+      },
+      willDrawCell:d=>{if(d.section==='head')doc.setCharSpace(.35)},
+      didDrawCell:d=>{
+        if(d.section==='head'){doc.setCharSpace(0);return}
+        if(d.section!=='body')return;
+        const r=d.cell.raw,banda=d.row.raw[0].banda,dy=banda?BANDA:0;
+        if(d.column.index===0){const p=doc.internal.getCurrentPageInfo().pageNumber;if(p!==pag){pag=p;inicios.push(d.row.index)}}
+        if(r&&r.b)r.b.draw(d.cell.x+PAD,d.cell.y+PAD+dy);
+        if(banda&&d.column.index===3){
+          doc.setFillColor(234,242,225);doc.rect(M,d.cell.y,W-2*M,BANDA,'F');
+          doc.setDrawColor(...VERDE2);doc.setLineWidth(.6);doc.line(M,d.cell.y,W-M,d.cell.y);
+          doc.setFont(F,'bold');doc.setFontSize(10.5);doc.setTextColor(...VERDE);doc.text(banda,M+PAD,d.cell.y+BANDA/2,{baseline:'middle'});
+        }
+      },
+      didDrawPage:d=>{encabezado();doc.setDrawColor(...LINEA);doc.setLineWidth(.3);doc.rect(M,TOP,W-2*M,d.cursor.y-TOP)}
     });
   }else{
-    encabezado();doc.setFontSize(12);doc.setTextColor(...GRIS);doc.text('Sin actividades programadas esta semana.',W/2,60,{align:'center'});
+    encabezado();doc.setFont(F,'normal');doc.setFontSize(12);doc.setTextColor(...GRIS);doc.text('Sin actividades programadas esta semana.',W/2,60,{align:'center'});
   }
-  const n=new Date(),hh=n.getHours(),gen=`Generado el ${n.getDate()} de ${MES[n.getMonth()]} de ${n.getFullYear()}, ${hh%12||12}:${pad(n.getMinutes())} ${hh<12?'a. m.':'p. m.'}`;
-  const total=doc.getNumberOfPages();
+  const total=doc.getNumberOfPages(),cuenta=`${n} ${n===1?'actividad':'actividades'}`;
+  const ah=new Date(),hh=ah.getHours(),gen=`Generado el ${ah.getDate()} de ${MES[ah.getMonth()]} de ${ah.getFullYear()}, ${hh%12||12}:${pad(ah.getMinutes())} ${hh<12?'a. m.':'p. m.'}`;
   for(let p=1;p<=total;p++){
-    doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);
-    doc.text(`${gen} · ${list.length} ${list.length===1?'actividad':'actividades'}`,M,H-8);
-    const pag=`Página ${p} de ${total}`,etq='Consulta en línea: ',x0=W-M-doc.getTextWidth(pag)-8-doc.getTextWidth(etq+CONSULTA);
-    doc.text(pag,W-M,H-8,{align:'right'});doc.text(etq,x0,H-8);
-    doc.setTextColor(...VERDE2);doc.textWithLink(CONSULTA,x0+doc.getTextWidth(etq),H-8,{url:CONSULTA});
+    doc.setPage(p);doc.setFont(F,'normal');doc.setFontSize(8.5);doc.setTextColor(...GRIS2);
+    doc.text(GRUPO,M,H-8);
+    doc.setFontSize(7);doc.text(gen,M,H-4.6);doc.setFontSize(8.5);
+    doc.text(`${cuenta} · Página ${p} de ${total}`,W-M,H-8,{align:'right'});
+    const etq='Consulta: ',x0=W/2-doc.getTextWidth(etq+CONSULTA)/2;
+    doc.text(etq,x0,H-8);doc.setTextColor(...VERDE2);doc.textWithLink(CONSULTA,x0+doc.getTextWidth(etq),H-8,{url:CONSULTA});
   }
-  return doc.output('blob');
+  return {doc,inicios};
 }
 
 // data
