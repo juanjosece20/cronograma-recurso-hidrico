@@ -274,7 +274,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
       <label class="full">Actividad <span class="req">obligatoria</span><input type="text" name="actividad" maxlength="200" spellcheck="true" lang="es" autocapitalize="sentences"></label>
       <label class="full">Tema / alcance<textarea name="tema" maxlength="1500" spellcheck="true" lang="es" autocapitalize="sentences"></textarea></label>
       <label>Lugar<input type="text" name="lugar" maxlength="150" list="lugares" spellcheck="true" lang="es" autocapitalize="sentences"></label>
-      <label>Entidades / invitados<input type="text" name="entidades" maxlength="500" placeholder="Ej.: CDMB; JAC La Esmeralda" spellcheck="true" lang="es" autocapitalize="sentences"></label>
+      <label>Entidades<input type="text" name="entidades" maxlength="500" placeholder="Ej.: CDMB; JAC La Esmeralda" spellcheck="true" lang="es" autocapitalize="sentences"></label>
       <fieldset class="full team"><legend>Participantes del equipo</legend><div id="teamChecks"></div></fieldset>
       <label class="full">Observaciones<input type="text" name="observaciones" maxlength="500" spellcheck="true" lang="es" autocapitalize="sentences"></label>
     </div>
@@ -368,7 +368,7 @@ function rangoCompleto(w){
 }
 // nombres en una sola línea; textos largos (listas viejas con comas o /) sí se parten
 function people(p){return String(p??'').split(/\s*;\s*/).filter(Boolean).map(x=>`<div${x.length>40?' class="w"':''}>${esc(x)}</div>`).join('')}
-function invitados(e){const h=people(e);return h?`<div class="inv"><small>Invitados:</small>${h}</div>`:''}
+function invitados(e){const h=people(e);return h?`<div class="inv"><small>Entidades:</small>${h}</div>`:''}
 function rowsFor(list,w,i){
   let html='',prev='',alt=true;
   if(!list.length) return `<tr class="empty"><td colspan="8">Sin actividades esta semana.</td></tr>`;
@@ -449,7 +449,7 @@ function openView(it){
   document.getElementById('vwBody').innerHTML=
     row('Tema / alcance',esc(it.tema))+row('Lugar',esc(it.lugar))+
     row('Participantes',esc(it.participantes).split(/\s*;\s*/).filter(Boolean).join('<br>'))+
-    row('Invitados',esc(it.entidades).split(/\s*;\s*/).filter(Boolean).join('<br>'))+
+    row('Entidades',esc(it.entidades).split(/\s*;\s*/).filter(Boolean).join('<br>'))+
     row('Observaciones',esc(it.observaciones),'ob');
   viewDlg.showModal();
 }
@@ -499,7 +499,7 @@ document.getElementById('delBtn').addEventListener('click',async e=>{
   catch(ex){items=antes;render();if(!canWrite)return;toast('No se pudo eliminar. Intenta de nuevo.',true)}
 });
 // texto: espacios de más fuera y primera letra en mayúscula (sin tocar siglas)
-const CAMPOS={actividad:'Actividad',tema:'Tema / alcance',lugar:'Lugar',entidades:'Entidades / invitados',observaciones:'Observaciones'};
+const CAMPOS={actividad:'Actividad',tema:'Tema / alcance',lugar:'Lugar',entidades:'Entidades',observaciones:'Observaciones'};
 const mayusInicial=s=>s.replace(/^([^\p{L}\p{N}]*)(\p{L})/u,(m,a,b)=>a+b.toUpperCase());
 const limpiar=s=>mayusInicial(String(s||'').replace(/\s+/g,' ').trim());
 const enMayusculas=s=>{const w=String(s||'').match(/\p{L}+/gu)||[];return w.length>4&&s===s.toUpperCase()&&s!==s.toLowerCase()};
