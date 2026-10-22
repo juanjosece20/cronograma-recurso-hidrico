@@ -176,7 +176,7 @@ tr.today td.d::after{content:"hoy";display:inline-block;margin-top:4px;backgroun
 .shot td.pp div.w{white-space:normal}
 .shot td.pp .inv{margin-top:6px}
 .shot td.pp .inv small{display:block;color:#7A8775;font-size:13px}
-.shot .ft{display:flex;justify-content:space-between;color:#7A8775;font-size:12.5px;margin-top:10px}
+.shot .ft{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 16px;color:#7A8775;font-size:12.5px;margin-top:10px}
 .shot .none{padding:30px;text-align:center;color:#5C6B57;font-size:16px}
 .iconbtn{border:1px solid var(--line);background:var(--surface);border-radius:8px;width:34px;height:34px;font-size:17px}
 .notice{background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:14px}
@@ -194,6 +194,16 @@ dialog input,dialog textarea{font-weight:400;border:1px solid var(--line);backgr
 dialog textarea{resize:vertical;min-height:62px}
 .req{color:#C20E1A;font-weight:400}
 #viewDlg{width:min(520px,94vw)}
+#shareDlg{width:min(440px,94vw)}
+.shr{margin:-6px 0 14px;color:var(--muted)}
+.opts{display:grid;gap:10px}
+.opt{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line);background:var(--tinte2);border-radius:12px;padding:12px 14px}
+.opt:hover{background:var(--tinte);border-color:var(--verde2)}
+.opt b{font-size:16px;color:var(--verde)}
+.opt span{font-size:13px;color:var(--muted)}
+.opt:disabled{opacity:.5;cursor:wait}
+#pdfSt{margin-top:12px;font-size:13.5px;color:var(--verde2);min-height:1.2em}
+#pdfSt.err{color:#C20E1A}
 .vw{padding:20px 22px}
 .vwd{display:inline-block;background:var(--tinte);color:var(--verde);font-weight:700;border-radius:8px;padding:4px 10px;font-size:14px}
 .vw h2{margin:10px 0 12px;font-size:20px;color:var(--ink)}
@@ -331,6 +341,22 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
   </div>
 </dialog>
 
+<dialog id="shareDlg">
+  <div class="vw">
+    <h2>Compartir semana</h2>
+    <p class="shr" id="shareRng"></p>
+    <div class="opts">
+      <button type="button" class="opt" id="optImg"><b>Imagen</b><span>Para WhatsApp</span></button>
+      <button type="button" class="opt" id="optPdf"><b>PDF</b><span>Para correo, informes o imprimir</span></button>
+    </div>
+    <div id="pdfSt" aria-live="polite"></div>
+    <div class="factions"><div style="margin-left:auto">
+      <button type="button" class="btn" id="pdfGo" hidden>Compartir PDF</button>
+      <button type="button" class="btn ghost" id="shareClose">Cerrar</button>
+    </div></div>
+  </div>
+</dialog>
+
 <dialog id="shotDlg">
   <div class="bar2"><span id="shotHint">Toma una captura de pantalla de este recuadro o descárgalo como imagen.</span>
     <button type="button" class="btn" id="shotDl">Compartir imagen</button>
@@ -345,6 +371,7 @@ fieldset.team legend{font-size:13px;font-weight:500;color:var(--muted);padding:0
 // nombres visibles: cámbialos aquí (el <title> y las etiquetas og: del <head> se editan a mano)
 const GRUPO='Grupo Recurso Hídrico';
 const EQUIPO='Equipo Recurso Hídrico';
+const CONSULTA='https://juanjosece20.github.io/cronograma-recurso-hidrico/?consulta';
 const DOW=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 const MES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const TODOS=EQUIPO,TODOS_RE=/todo el equipo|equipo pgirh|equipo recurso h[ií]drico/i;
@@ -432,7 +459,7 @@ function tableHTML(weeks,completa){
     const e=addDays(w,6),list=all.filter(it=>{const d=parse(it.fecha);return d>=w&&d<=e});
     if(state.inc&&!completa&&!list.length)return;
     const n=weeksOf(i).findIndex(x=>iso(x)===iso(w))+1;
-    body+=`<tr class="wkrow"><td colspan="6">Semana ${n} <span>${completa?rangoCompleto(w):rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span>${completa?'':`<button type="button" class="addw" data-shot="${iso(w)}">Imagen semanal</button>`}</td></tr>`+rowsFor(list,w,i);
+    body+=`<tr class="wkrow"><td colspan="6">Semana ${n} <span>${completa?rangoCompleto(w):rangeTxt(w,i)} · ${list.length} ${list.length===1?'actividad':'actividades'}</span>${completa?'':`<button type="button" class="addw" data-share="${iso(w)}">Compartir</button>`}</td></tr>`+rowsFor(list,w,i);
   });
   return `<div class="tablebox"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Actividad</th><th>Tema / alcance</th><th>Lugar</th><th>Participantes</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
@@ -456,7 +483,7 @@ function render(){
   if(state.view==='mes') main.innerHTML=tableHTML(weeks);
   else{
     const w=state.week,n=weeks.findIndex(x=>iso(x)===iso(w))+1;
-    main.innerHTML=`<div class="weeknav"><button type="button" class="iconbtn" data-wk="-1" aria-label="Semana anterior">‹</button><button type="button" class="iconbtn" data-wk="1" aria-label="Semana siguiente">›</button><h2>${rangoCompleto(w)}</h2><button type="button" class="btn" id="shotBtn">Imagen para compartir</button></div>`+tableHTML([w],true);
+    main.innerHTML=`<div class="weeknav"><button type="button" class="iconbtn" data-wk="-1" aria-label="Semana anterior">‹</button><button type="button" class="iconbtn" data-wk="1" aria-label="Semana siguiente">›</button><h2>${rangoCompleto(w)}</h2><button type="button" class="btn" id="shotBtn">Compartir</button></div>`+tableHTML([w],true);
   }
   document.getElementById('quick').hidden=!canWrite;
   document.getElementById('vwEdit').hidden=!canWrite;
@@ -466,8 +493,8 @@ function render(){
 // events
 document.addEventListener('click',e=>{
   const t=e.target.closest('button,tr.act');if(!t)return;
-  if(t.id==='shotBtn'){openShot(state.week);return}
-  if(t.dataset.shot){openShot(parse(t.dataset.shot));return}
+  if(t.id==='shotBtn'){openShare(state.week);return}
+  if(t.dataset.share){openShare(parse(t.dataset.share));return}
   if(t.id==='incBtn'){state.inc=!state.inc;if(state.inc){state.q='';document.getElementById('search').value='';state.view='mes'}render();return}
   if(t.dataset.m!==undefined){state.month=+t.dataset.m;state.week=defaultWeek(state.month);render();return}
   if(t.dataset.view){state.view=t.dataset.view;render();return}
@@ -594,7 +621,7 @@ function shotHTML(w,fixed){
   return `<div class="shot" ${fixed?'style="width:1200px"':''}>
     <div class="sh"><img src="${logo}" alt=""><div><h2>Cronograma de actividades</h2><div class="g">${GRUPO}</div><p>Semana del ${rng}</p></div></div>
     ${list.length?`<table style="width:100%;border-collapse:collapse"><thead><tr><th>Hora</th><th>Actividad</th><th>Lugar</th><th>Participantes</th></tr></thead><tbody>${rows}</tbody></table>`:`<div class="none">Sin actividades programadas esta semana.</div>`}
-    <div class="ft"><span>${GRUPO}</span><span>${list.length} ${list.length===1?'actividad':'actividades'}</span></div></div>`;
+    <div class="ft"><span>${GRUPO}</span><span>Consulta: ${CONSULTA}</span><span>${list.length} ${list.length===1?'actividad':'actividades'}</span></div></div>`;
 }
 const shotDlg=document.getElementById('shotDlg');
 let shotBlob=null,shotJob=0;
@@ -627,7 +654,8 @@ function mostrarParaGuardar(){
 }
 shotDlg.addEventListener('close',()=>{shotJob++});
 document.getElementById('shotClose').addEventListener('click',()=>shotDlg.close());
-function loadScript(src){return new Promise((ok,ko)=>{if(window.html2canvas)return ok();const sc=document.createElement('script');sc.src=src;sc.onload=ok;sc.onerror=ko;document.head.appendChild(sc)})}
+const scripts={};
+function loadScript(src){return scripts[src]||(scripts[src]=new Promise((ok,ko)=>{const sc=document.createElement('script');sc.src=src;sc.onload=ok;sc.onerror=()=>{delete scripts[src];ko(new Error(src))};document.head.appendChild(sc)}))}
 document.getElementById('shotDl').addEventListener('click',async()=>{
   if(!shotBlob)return;
   const hint=document.getElementById('shotHint'),name=`Cronograma semana ${iso(shotWeek)}.png`;
@@ -641,6 +669,103 @@ document.getElementById('shotDl').addEventListener('click',async()=>{
   const a=document.createElement('a');a.href=URL.createObjectURL(shotBlob);a.download=name;document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000);hint.textContent='Imagen descargada.';
 });
+
+
+// compartir: imagen o PDF
+const JSPDF='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+const AUTOTABLE='https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+const shareDlg=document.getElementById('shareDlg'),pdfSt=document.getElementById('pdfSt'),pdfGo=document.getElementById('pdfGo');
+let shareWeek=null,pdfBlob=null,pdfJob=0;
+const rangoTexto=w=>{const e=addDays(w,6);return `${w.getDate()} ${w.getMonth()!==e.getMonth()?'de '+MES[w.getMonth()]+' ':''}al ${e.getDate()} de ${MES[e.getMonth()]} de ${e.getFullYear()}`};
+const semana=w=>{const e=addDays(w,6);return filtered().filter(it=>{const d=parse(it.fecha);return d>=w&&d<=e})};
+function openShare(w){
+  shareWeek=w;pdfBlob=null;pdfJob++;
+  document.getElementById('shareRng').textContent='Semana del '+rangoTexto(w);
+  pdfSt.textContent='';pdfSt.classList.remove('err');pdfGo.hidden=true;
+  document.querySelectorAll('.opt').forEach(b=>b.disabled=false);
+  shareDlg.showModal();
+  loadScript(JSPDF).then(()=>loadScript(AUTOTABLE)).catch(()=>{});
+}
+document.getElementById('shareClose').addEventListener('click',()=>shareDlg.close());
+shareDlg.addEventListener('close',()=>{pdfJob++});
+document.getElementById('optImg').addEventListener('click',()=>{shareDlg.close();openShot(shareWeek)});
+document.getElementById('optPdf').addEventListener('click',async()=>{
+  const job=++pdfJob;document.querySelectorAll('.opt').forEach(b=>b.disabled=true);
+  pdfSt.classList.remove('err');pdfSt.textContent='Preparando PDF…';pdfGo.hidden=true;
+  try{pdfBlob=await crearPDF(shareWeek)}
+  catch(_){if(job!==pdfJob)return;pdfSt.classList.add('err');pdfSt.textContent='No se pudo generar el PDF. Revisa la conexión e intenta de nuevo.';document.querySelectorAll('.opt').forEach(b=>b.disabled=false);return}
+  if(job!==pdfJob)return;
+  document.querySelectorAll('.opt').forEach(b=>b.disabled=false);
+  entregarPDF();
+});
+pdfGo.addEventListener('click',entregarPDF);
+async function entregarPDF(){
+  if(!pdfBlob)return;
+  const name=`Cronograma semana ${iso(shareWeek)}.pdf`,file=new File([pdfBlob],name,{type:'application/pdf'});
+  if(esCel()&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:'Cronograma de la semana'});pdfSt.textContent='Listo.';pdfGo.hidden=true}
+    catch(err){
+      // si el teléfono pide un toque nuevo para compartir, se ofrece el botón
+      pdfGo.hidden=false;pdfGo.textContent='Compartir PDF';
+      pdfSt.textContent=err&&err.name==='AbortError'?'Compartir cancelado.':'PDF listo. Pulsa «Compartir PDF».';
+    }
+    return;
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(pdfBlob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  pdfSt.textContent='PDF descargado.';pdfGo.hidden=false;pdfGo.textContent='Descargar de nuevo';
+}
+let logoPNG=null;
+function cargarLogo(){
+  return logoPNG||(logoPNG=new Promise((ok,ko)=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0);ok({src:c.toDataURL('image/jpeg',.92),r:im.naturalHeight/im.naturalWidth})};im.onerror=()=>{logoPNG=null;ko(new Error('logo'))};im.src=document.querySelector('.head img').src}));
+}
+async function crearPDF(w){
+  await loadScript(JSPDF);await loadScript(AUTOTABLE);
+  const logo=await cargarLogo(),list=semana(w);
+  const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'letter'});
+  const W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),M=12;
+  const VERDE=[40,95,25],VERDE2=[67,136,61],TINTA=[31,42,28],GRIS=[122,135,117];
+  doc.setProperties({title:`Cronograma ${EQUIPO} – semana del ${rangoTexto(w)}`,author:GRUPO});
+  const encabezado=()=>{
+    doc.addImage(logo.src,'JPEG',M,8,50,50*logo.r);
+    doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(...VERDE);
+    doc.text(`Cronograma – ${EQUIPO}`,W-M,15,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(10.5);doc.setTextColor(...TINTA);
+    doc.text(`Semana del ${rangoTexto(w)}`,W-M,21.5,{align:'right'});
+    doc.setFillColor(...VERDE2);doc.rect(M,27,W-2*M,1.1,'F');
+    doc.setFillColor(248,220,11);doc.rect(M,27,18,1.1,'F');
+  };
+  const lineas=s=>String(s||'').split(/\s*;\s*/).filter(Boolean).join('\n');
+  let prev='';
+  const body=list.map(it=>{
+    const d=parse(it.fecha),fecha=it.fecha!==prev?`${DOW[(d.getDay()+6)%7]}\n${pad(d.getDate())} ${MES[d.getMonth()].slice(0,3)}`:'';prev=it.fecha;
+    const hora=it.hora?{content:fmtHora(it.hora)}:{content:'Por definir',styles:{textColor:GRIS,fontStyle:'normal'}};
+    return [fecha,hora,it.actividad||'',it.tema||'',it.lugar||'',lineas(it.participantes),lineas(it.entidades),it.observaciones||''];
+  });
+  if(list.length){
+    doc.autoTable({
+      head:[['Fecha','Hora','Actividad','Tema / alcance','Lugar','Participantes','Entidades','Observaciones']],body,
+      startY:32,margin:{top:32,left:M,right:M,bottom:16},rowPageBreak:'avoid',
+      styles:{font:'helvetica',fontSize:8,cellPadding:1.8,textColor:TINTA,lineColor:[213,224,204],lineWidth:.2,valign:'top',overflow:'linebreak'},
+      headStyles:{fillColor:VERDE,textColor:255,fontStyle:'bold',fontSize:8.5},
+      alternateRowStyles:{fillColor:[246,249,242]},
+      columnStyles:{0:{cellWidth:19,fontStyle:'bold',textColor:VERDE2},1:{cellWidth:17,fontStyle:'bold',textColor:VERDE2},2:{cellWidth:42,fontStyle:'bold'},3:{cellWidth:'auto',textColor:[92,107,87]},4:{cellWidth:28},5:{cellWidth:39},6:{cellWidth:32},7:{cellWidth:25,textColor:[138,90,0]}},
+      didDrawPage:encabezado
+    });
+  }else{
+    encabezado();doc.setFontSize(12);doc.setTextColor(...GRIS);doc.text('Sin actividades programadas esta semana.',W/2,60,{align:'center'});
+  }
+  const n=new Date(),hh=n.getHours(),gen=`Generado el ${n.getDate()} de ${MES[n.getMonth()]} de ${n.getFullYear()}, ${hh%12||12}:${pad(n.getMinutes())} ${hh<12?'a. m.':'p. m.'}`;
+  const total=doc.getNumberOfPages();
+  for(let p=1;p<=total;p++){
+    doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(...GRIS);
+    doc.text(`${gen} · ${list.length} ${list.length===1?'actividad':'actividades'}`,M,H-8);
+    const pag=`Página ${p} de ${total}`,etq='Consulta en línea: ',x0=W-M-doc.getTextWidth(pag)-8-doc.getTextWidth(etq+CONSULTA);
+    doc.text(pag,W-M,H-8,{align:'right'});doc.text(etq,x0,H-8);
+    doc.setTextColor(...VERDE2);doc.textWithLink(CONSULTA,x0+doc.getTextWidth(etq),H-8,{url:CONSULTA});
+  }
+  return doc.output('blob');
+}
 
 // data
 let tt;function toast(t,bad,ms){const el=document.getElementById('toast');el.textContent=t;el.classList.toggle('err',!!bad);el.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('on'),ms||3000)}
